@@ -12,7 +12,7 @@ while true; do
         else
             echo "PacketShare.exe not running"
         fi
-        devilspie2 --file min.lua
+        devilspie2 --debug /home/tch/min.lua
         echo "PacketShare window minimized."
     else
         echo "PacketShare window not found."
