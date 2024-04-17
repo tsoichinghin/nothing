@@ -21,4 +21,5 @@ while true; do
     else
         echo "PacketShare window not found."
     fi
+    sleep 2
 done
