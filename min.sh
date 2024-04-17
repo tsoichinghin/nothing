@@ -15,7 +15,7 @@ while true; do
         fi
         devilspie2 /home/tch/.config/devilspie2/min.lua &
         devilspie2_pid=$!
-        sleep 60
+        sleep 30
         kill $devilspie2_pid
         echo "PacketShare window minimized."
     else
