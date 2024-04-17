@@ -7,6 +7,7 @@ while true; do
     if [ -n "$window_id" ]; then
         packetshare_pid=$(pgrep -f "PacketShare.exe" || true)
         if [ -n "$packetshare_pid" ]; then
+            pkill -9 -f cpulimit
             cpulimit -p "$packetshare_pid" -l 10 &
             echo "cpulimit command executed for PacketShare.exe with PID $packetshare_pid"
         else
