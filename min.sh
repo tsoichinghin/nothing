@@ -47,12 +47,16 @@ while true; do
             kill "$packetshare_pid"
             sleep 1
             wine ~/.wine/drive_c/Program\ Files/PacketShare/PacketShare.exe &
+            packetshare_pid=$(pgrep -f "PacketShare.exe" || true)
+            cpulimit -p "$packetshare_pid" -l 10 &
             sleep 30
             echo "PacketShare.exe restarted."
         fi
     else
         echo "PacketShare.exe not running. Restarting..."
         wine ~/.wine/drive_c/Program\ Files/PacketShare/PacketShare.exe &
+        packetshare_pid=$(pgrep -f "PacketShare.exe" || true)
+        cpulimit -p "$packetshare_pid" -l 10 &
         sleep 30
     fi
     sleep 2
