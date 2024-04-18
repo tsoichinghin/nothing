@@ -2,6 +2,16 @@
 
 echo "Enter the program!"
 
+function check_cpu_usage_below_10 {
+    echo "CPU usage history: ${cpu_usage_history[@]}"
+    for usage in "${cpu_usage_history[@]}"; do
+        if (( usage < 10 )); then
+            return 0
+        fi
+    done
+    return 1
+}
+
 while true; do
     window_id=$(xdotool search --name "PacketShare")
     packetshare_pid=$(pgrep -f "PacketShare.exe" || true)
@@ -23,20 +33,9 @@ while true; do
             packetshare_cpu_usage=$(ps -p "$packetshare_pid" -o %cpu | tail -n 1 | awk '{printf "%d", $1}')
             echo "CPU usage: $packetshare_cpu_usage"
             cpu_usage_history+=("$packetshare_cpu_usage")
-            if [ ${#cpu_usage_history[@]} -gt 10 ]; then
-                cpu_usage_history=("${cpu_usage_history[@]:1}")
-            fi
             sleep 1
         done
-        check_cpu_usage_below_10() {
-            echo "CPU usage histor: $cpu_usage_history"
-            for usage in "${cpu_usage_history[@]}"; do
-                if (( usage < 10 )); then
-                    return 0
-                fi
-            done
-            return 1
-        }
+        check_cpu_usage_below_10
         if check_cpu_usage_below_10; then
             echo "There was at least one second in the past 10 seconds when CPU usage was below 10%."
             echo "PacketShare.exe CPU usage is normal."
