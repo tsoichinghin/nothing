@@ -15,7 +15,9 @@ while true; do
             sleep 30
             kill $devilspie2_pid
             echo "PacketShare window minimized."
-        fi
+        else
+            echo "PacketShare window was not found."
+         fi
         cpu_usage_history=()
         for i in {1..10}; do
             packetshare_cpu_usage=$(ps -p "$packetshare_pid" -o %cpu | tail -n 1 | awk '{printf "%d", $1}')
