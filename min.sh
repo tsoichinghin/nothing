@@ -3,21 +3,16 @@
 echo "Enter the program!"
 
 while true; do
-    window_id=$(xdotool search --name "PacketShare")
     packetshare_pid=$(pgrep -f "PacketShare.exe" || true)
     if [ -n "$packetshare_pid" ]; then
-        if [ -n "$window_id" ]; then
-            pkill -9 -f cpulimit
-            cpulimit -p "$packetshare_pid" -l 10 &
-            echo "cpulimit command executed for PacketShare.exe with PID $packetshare_pid"
-            devilspie2 /home/tch/.config/devilspie2/min.lua &
-            devilspie2_pid=$!
-            sleep 30
-            kill $devilspie2_pid
-            echo "PacketShare window minimized."
-        else
-            echo "PacketShare window was not found."
-         fi
+        pkill -9 -f cpulimit
+        cpulimit -p "$packetshare_pid" -l 10 &
+        echo "cpulimit command executed for PacketShare.exe with PID $packetshare_pid"
+        devilspie2 /home/tch/.config/devilspie2/min.lua &
+        devilspie2_pid=$!
+        sleep 30
+        kill $devilspie2_pid
+        echo "PacketShare window minimized."
         cpu_usage_history=()
         for i in {1..10}; do
             packetshare_cpu_usage=$(ps -p "$packetshare_pid" -o %cpu | tail -n 1 | awk '{printf "%d", $1}')
