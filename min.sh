@@ -2,10 +2,10 @@
 
 echo "Enter the program!"
 
-function check_cpu_usage_below_10 {
+function check_cpu_usage_higher_20 {
     echo "CPU usage history: ${cpu_usage_history[@]}"
     for usage in "${cpu_usage_history[@]}"; do
-        if (( usage < 10 )); then
+        if (( usage > 20 )); then
             return 0
         fi
     done
@@ -39,13 +39,9 @@ while true; do
             fi
             sleep 1
         done
-        check_cpu_usage_below_10
-        if check_cpu_usage_below_10; then
-            echo "There was at least one second in the past 10 seconds when CPU usage was below 10%."
-            echo "PacketShare.exe CPU usage is normal."
-        else
-            echo "CPU usage was not below 10% in the past 10 seconds."
-            echo "CPU usage greater than 10% after minimize or the window even not found. It means doesn't minimize or error."
+        check_cpu_usage_higher_20
+        if check_cpu_usage_higher_20; then
+            echo "At least one second in past 10 second of CPU usage greater than 20% after minimize or the window even not found. It means doesn't minimize or error."
             echo "PacketShare.exe terminating..."
             kill "$packetshare_pid"
             sleep 1
@@ -54,6 +50,9 @@ while true; do
             cpulimit -p "$packetshare_pid" -l 10 &
             sleep 30
             echo "PacketShare.exe restarted."
+        else
+            echo "There was no one second in the past 10 seconds when CPU usage was higher than 20%."
+            echo "PacketShare.exe CPU usage is normal."
         fi
     else
         echo "PacketShare.exe not running. Restarting..."
