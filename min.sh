@@ -28,7 +28,7 @@ while true; do
         while true; do
             echo "CPU usage history: ${cpu_usage_history[@]}"
             for usage in "${cpu_usage_history[@]}"; do
-                if (( usage < 10 )); then
+                if [ "$usage" -lt 10 ]; then
                     echo "There was at least one second in the past 10 seconds when CPU usage was below 10%."
                     echo "PacketShare.exe CPU usage is normal."
                     break
