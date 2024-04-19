@@ -14,7 +14,7 @@ function check_cpu_usage_higher_20 {
 
 while true; do
     packetshare_pid=$(pidof PacketShare.exe)
-    window_id=$(xdotool search --name "PacketShare")
+    window_id=$(xdotool search --name PacketShare)
     if [ -n "$packetshare_pid" ]; then
         if [ -n "$window_id" ]; then
             pkill -9 -f cpulimit
