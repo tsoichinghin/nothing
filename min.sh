@@ -20,7 +20,8 @@ while true; do
         fi
         cpu_usage_history=()
         for i in {1..10}; do
-            packetshare_cpu_usage=$(top -b -n 1 -d 1 -p "$packetshare_pid" | grep "$packetshare_pid" | tail -n 1 | awk '{print $9}')
+            packetshare_cpu_usage=$(pidstat -p 66758 | awk 'NR>3 {print $9}')
+            packetshare_cpu_usage=${packetshare_cpu_usage%.*}
             echo "CPU usage: $packetshare_cpu_usage"
             cpu_usage_history+=("$packetshare_cpu_usage")
             if [ ${#cpu_usage_history[@]} -gt 10 ]; then
