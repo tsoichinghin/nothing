@@ -3,7 +3,7 @@
 echo "Enter the program!"
 
 while true; do
-    packetshare_pid=$(pgrep -f "PacketShare.exe" || true)
+    packetshare_pid=$(pidof PacketShare.exe)
     window_id=$(xdotool search --name "PacketShare")
     if [ -n "$packetshare_pid" ]; then
         if [ -n "$window_id" ]; then
@@ -20,7 +20,7 @@ while true; do
         fi
         cpu_usage_history=()
         for i in {1..10}; do
-            packetshare_cpu_usage=$(pidstat -p $packetshare_pid | awk 'NR>3 {print $9}')
+            packetshare_cpu_usage=$(top -b -n 1 -d 1 -p $packetshare_pid | grep $packetshare_pid | awk '{print $9}')
             packetshare_cpu_usage=${packetshare_cpu_usage%.*}
             echo "CPU usage: $packetshare_cpu_usage"
             cpu_usage_history+=("$packetshare_cpu_usage")
@@ -44,7 +44,7 @@ while true; do
             kill "$packetshare_pid"
             sleep 1
             wine ~/.wine/drive_c/Program\ Files/PacketShare/PacketShare.exe &
-            packetshare_pid=$(pgrep -f "PacketShare.exe" || true)
+            packetshare_pid=$(pidof PacketShare.exe)
             cpulimit -p "$packetshare_pid" -l 10 &
             sleep 30
             echo "PacketShare.exe restarted."
@@ -53,7 +53,7 @@ while true; do
     else
         echo "PacketShare.exe not running. Restarting..."
         wine ~/.wine/drive_c/Program\ Files/PacketShare/PacketShare.exe &
-        packetshare_pid=$(pgrep -f "PacketShare.exe" || true)
+        packetshare_pid=$(pidof PacketShare.exe)
         cpulimit -p "$packetshare_pid" -l 10 &
         sleep 30
     fi
