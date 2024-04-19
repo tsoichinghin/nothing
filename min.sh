@@ -13,11 +13,13 @@ while true; do
         sleep 30
         kill $devilspie2_pid
         echo "PacketShare window minimized."
-        cpu_usage_history=()
         for i in {1..10}; do
             packetshare_cpu_usage=$(ps -p "$packetshare_pid" -o %cpu | tail -n 1 | awk '{printf "%d", $1}')
             echo "CPU usage: $packetshare_cpu_usage"
             cpu_usage_history+=("$packetshare_cpu_usage")
+            if [ ${#cpu_usage_history[@]} -gt 10 ]; then
+                cpu_usage_history=("${cpu_usage_history[@]:1}")
+            fi
             sleep 1
         done
         while true; do
