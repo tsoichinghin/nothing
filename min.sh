@@ -25,19 +25,15 @@ while true; do
             cpu_usage_history+=("$packetshare_cpu_usage")
             sleep 1
         done
-        check_cpu_usage_below_10() {
+        while true; do
             echo "CPU usage history: ${cpu_usage_history[@]}"
             for usage in "${cpu_usage_history[@]}"; do
                 if (( usage < 10 )); then
-                    return 0
+                    echo "There was at least one second in the past 10 seconds when CPU usage was below 10%."
+                    echo "PacketShare.exe CPU usage is normal."
+                    break
                 fi
             done
-            return 1
-        }
-        if check_cpu_usage_below_10; then
-            echo "There was at least one second in the past 10 seconds when CPU usage was below 10%."
-            echo "PacketShare.exe CPU usage is normal."
-        else
             echo "CPU usage was not below 10% in the past 10 seconds."
             echo "CPU usage greater than 10% after minimize or the window even not found. It means doesn't minimize or error."
             echo "PacketShare.exe terminating..."
@@ -48,7 +44,8 @@ while true; do
             cpulimit -p "$packetshare_pid" -l 10 &
             sleep 30
             echo "PacketShare.exe restarted."
-        fi
+            break
+        done
     else
         echo "PacketShare.exe not running. Restarting..."
         wine ~/.wine/drive_c/Program\ Files/PacketShare/PacketShare.exe &
