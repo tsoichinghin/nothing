@@ -55,6 +55,7 @@ while true; do
     else
         echo "PacketShare.exe not running. Restarting..."
         wine ~/.wine/drive_c/Program\ Files/PacketShare/PacketShare.exe &
+        sleep 10
         packetshare_pid=$(pidof "PacketShare.exe")
         cpulimit -p "$packetshare_pid" -l 20 &
         sleep 30
