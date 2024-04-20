@@ -11,13 +11,10 @@ while true; do
             cpulimit -p "$packetshare_pid" -l 15 &
             echo "cpulimit command executed for PacketShare.exe with PID $packetshare_pid"
             devilspie2 /home/tch/.config/devilspie2/max.lua &
-            max_pid=$!
             sleep 30
-            kill "$max_pid"
             devilspie2 /home/tch/.config/devilspie2/min.lua &
-            min_pid=$!
             sleep 30
-            kill "$min_pid"
+            pkill -9 -f devilspie2
             echo "PacketShare window minimized."
         else
             echo "PacketShare window not found."
