@@ -19,10 +19,31 @@ function check_cpu_usage_below_10 {
 
 while true; do
     packetshare_pid=$(pidof "PacketShare.exe")
-    window_id=$(xdotool search --name "PacketShare")
     if [ -n "$packetshare_pid" ]; then
+        packetshare_state=$(timeout 5s ps -p "$packetshare_pid" -o state --no-headers)
+        if [ "$packetshare_state" == "S" ]; then
+            echo "PacketShare.exe were running."
+        elif [ "$packetshare_state" == "T" ]; then
+            kill -9 "$packetshare_pid"
+            echo "PacketShare.exe terminated due to unresponsive or suspended state."
+            wine ~/.wine/drive_c/Program\ Files/PacketShare/PacketShare.exe &
+            sleep 10
+            packetshare_pid=$(pidof "PacketShare.exe")
+            cpulimit -p "$packetshare_pid" -l 20 &
+            echo "PacketShare.exe restarted."
+        else
+            kill -9 "$packetshare_pid"
+            echo "PacketShare.exe terminated due to unresponsive or suspended state."
+            wine ~/.wine/drive_c/Program\ Files/PacketShare/PacketShare.exe &
+            sleep 10
+            packetshare_pid=$(pidof "PacketShare.exe")
+            cpulimit -p "$packetshare_pid" -l 20 &
+            echo "PacketShare.exe restarted."
+        fi
+        window_id=$(xdotool search --name "PacketShare")
         if [ -n "$window_id" ]; then
             pkill -9 -f cpulimit
+            packetshare_pid=$(pidof "PacketShare.exe")
             cpulimit -p "$packetshare_pid" -l 20 &
             echo "cpulimit command executed for PacketShare.exe with PID $packetshare_pid"
             cpu_usage_history=()
