@@ -10,8 +10,7 @@ while true; do
             pkill -9 -f cpulimit
             cpulimit -p "$packetshare_pid" -l 15 &
             echo "cpulimit command executed for PacketShare.exe with PID $packetshare_pid"
-            devilspie2 /home/tch/.config/devilspie2/max.lua &
-            sleep 30
+            xdotool windowactivate "$window_id"
             devilspie2 /home/tch/.config/devilspie2/min.lua &
             sleep 30
             pkill -9 -f devilspie2
