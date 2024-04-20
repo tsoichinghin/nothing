@@ -41,6 +41,7 @@ while true; do
                echo "CPU usage at least 7 times in 10 times at the past 20 seconds are below 10%."
                echo "CPU usage normal."
             else
+               echo "CPU usage abnormal."
                xdotool windowactivate "$window_id"
                echo "PacketShare window activated."
                sleep 10
