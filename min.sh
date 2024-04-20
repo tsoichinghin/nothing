@@ -48,6 +48,7 @@ while true; do
                echo "PacketShare window minimized."
                sleep 30
                pkill -9 -f devilspie2
+            fi
         else
             echo "PacketShare window not found."
         fi
