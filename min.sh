@@ -21,7 +21,7 @@ while true; do
     packetshare_pid=$(pidof "PacketShare.exe")
     if [ -n "$packetshare_pid" ]; then
         packetshare_state=$(timeout 5s ps -p "$packetshare_pid" -o state --no-headers)
-        if [ "$packetshare_state" == "S" ] || [ "$packetshare_state" == "R" ]; then
+        if [ "$packetshare_state" == "S" ] || [ "$packetshare_state" == "R" ] || [ "$packetshare_state" == "I" ] || [ "$packetshare_state" == "W" ] || [ "$packetshare_state" == "N" ] || [ "$packetshare_state" == "<" ]; then
             echo "PacketShare.exe were running."
         else
             kill -9 "$packetshare_pid"
