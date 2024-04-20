@@ -8,7 +8,7 @@ while true; do
     if [ -n "$packetshare_pid" ]; then
         if [ -n "$window_id" ]; then
             pkill -9 -f cpulimit
-            cpulimit -p "$packetshare_pid" -l 5 &
+            cpulimit -p "$packetshare_pid" -l 15 &
             echo "cpulimit command executed for PacketShare.exe with PID $packetshare_pid"
             devilspie2 /home/tch/.config/devilspie2/min.lua &
             devilspie2_pid=$!
@@ -22,7 +22,7 @@ while true; do
         echo "PacketShare.exe not running. Restarting..."
         wine ~/.wine/drive_c/Program\ Files/PacketShare/PacketShare.exe &
         packetshare_pid=$(pidof "PacketShare.exe")
-        cpulimit -p "$packetshare_pid" -l 5 &
+        cpulimit -p "$packetshare_pid" -l 15 &
         sleep 30
     fi
     sleep 2
