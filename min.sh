@@ -23,7 +23,7 @@ while true; do
     if [ -n "$packetshare_pid" ]; then
         if [ -n "$window_id" ]; then
             pkill -9 -f cpulimit
-            cpulimit -p "$packetshare_pid" -l 15 &
+            cpulimit -p "$packetshare_pid" -l 20 &
             echo "cpulimit command executed for PacketShare.exe with PID $packetshare_pid"
             cpu_usage_history=()
             for i in {1..10}; do
@@ -56,7 +56,7 @@ while true; do
         echo "PacketShare.exe not running. Restarting..."
         wine ~/.wine/drive_c/Program\ Files/PacketShare/PacketShare.exe &
         packetshare_pid=$(pidof "PacketShare.exe")
-        cpulimit -p "$packetshare_pid" -l 15 &
+        cpulimit -p "$packetshare_pid" -l 20 &
         sleep 30
     fi
     sleep 2
