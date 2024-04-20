@@ -10,7 +10,7 @@ function check_cpu_usage_below_10 {
             count_below_10=$((count_below_10 + 1))
         fi
     done
-    if (( count_below_10 >= 5 )); then
+    if (( count_below_10 >= 7 )); then
         return 0
     else
         return 1
@@ -34,11 +34,11 @@ while true; do
                 if [ ${#cpu_usage_history[@]} -gt 10 ]; then
                     cpu_usage_history=("${cpu_usage_history[@]:1}")
                 fi
-                sleep 1
+                sleep 2
             done
             check_cpu_usage_below_10
             if check_cpu_usage_below_10; then
-               echo "CPU usage at least 5 seconds in past 10 seconds are below 10%."
+               echo "CPU usage at least 7 times in 10 times at the past 20 seconds are below 10%."
                echo "CPU usage normal."
             else
                xdotool windowactivate "$window_id"
