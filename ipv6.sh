@@ -8,9 +8,9 @@ while IFS= read -r line; do
     if [[ $line == *inet6* ]]; then
         ipv6_address=$(echo $line | awk '{print $2}')
         ipv6_addresses+=("$ipv6_address")
+        echo "ipv6_address: $ipv6_address"
     fi
 done <<< "$ipv6_info"
-echo "ipv6_address: $ipv6_address"
 
 for i in "${!ipv6_addresses[@]}"; do
     ipv6_subnet="${ipv6_addresses[$i]}"
