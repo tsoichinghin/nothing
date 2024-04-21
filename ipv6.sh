@@ -41,12 +41,31 @@ for ipv6_address in "${ipv6_addresses[@]}"; do
         echo "Subnet: $subnet"
         if [[ $subnet == 2607:* ]]; then
             network_name="isp"
+            docker_commands=(
+                "docker run -d --network $network_name --restart always traffmonetizer/cli_v2 start accept --token b6UZLbAQ3BpAX02rVwk/H0qtRURyE5YHUi2OQnIZD7o="
+                "docker run -e RP_EMAIL=tsoichinghin@gmail.com -e RP_API_KEY=a17ebebc-ad88-40ba-ba85-9eaee015e1f4 -d --restart=always --network $network_name" repocket/repocket
+                "docker run -d --network $network_name --restart=always -e CID=5rwJ packetstream/psclient:latest"
+                "docker run -d --network $network_name --restart=always -e EARNFM_TOKEN='2d881781-20c2-43a8-91f4-6f6f7bfedf0a' earnfm/earnfm-client:latest"
+                "docker run -d --network $network_name --restart always packetshare"
+                "docker run -d --network $network_name --restart always pawnapp"
+            )
         else
             network_name="n$((i + 1))"
+            docker_commands=(
+                "docker run -d --network $network_name --restart always traffmonetizer/cli_v2 start accept --token b6UZLbAQ3BpAX02rVwk/H0qtRURyE5YHUi2OQnIZD7o="
+                "docker run -e RP_EMAIL=tsoichinghin@gmail.com -e RP_API_KEY=a17ebebc-ad88-40ba-ba85-9eaee015e1f4 -d --restart=always --network $network_name" repocket/repocket
+                "docker run -d --network $network_name --restart=always -e CID=5rwJ packetstream/psclient:latest"
+                "docker run -d --network $network_name --restart=always -e EARNFM_TOKEN='2d881781-20c2-43a8-91f4-6f6f7bfedf0a' earnfm/earnfm-client:latest"
+                "docker run -d --network $network_name --restart always packetshare"
+            )
             ((i++))
         fi
         docker network create "$network_name" --driver bridge --subnet "$subnet"
         echo "docker network create $network_name --driver bridge --subnet $subnet"
+        for cmd in "${docker_commands[@]}"; do
+            echo "Running command: $cmd"
+            eval $cmd
+        done
     else
         echo "IPv6 address $ipv6_address is not in the expected format."
     fi
