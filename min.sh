@@ -30,7 +30,7 @@ while true; do
             echo "PacketShare.exe is restarting."
             sleep 10
             packetshare_pid=$(pidof "PacketShare.exe")
-            cpulimit -p "$packetshare_pid" -l 20 &
+            cpulimit -p "$packetshare_pid" -l 10 &
             sleep 30
             echo "PacketShare.exe restarted."
         fi
@@ -74,7 +74,7 @@ while true; do
         echo "PacketShare.exe is restarting."
         sleep 10
         packetshare_pid=$(pidof "PacketShare.exe")
-        cpulimit -p "$packetshare_pid" -l 20 &
+        cpulimit -p "$packetshare_pid" -l 10 &
         sleep 30
         echo "PacketShare.exe restarted."
     fi
