@@ -1,4 +1,5 @@
 import time
+import pyautogui
 
 def close_app():
     while True:
