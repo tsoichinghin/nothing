@@ -16,7 +16,7 @@ if target_word in data['text']:
     print("Found PacketShare window")
     target_word = None
     target_word = "tsoichinghin@gmail.com"
-    if target_word not in data['text']:
+    if target_word in data['text']:
         print("PacketShare window found, good.")
     else:
         print("Not found email. Its means PacketShare in the loading pages")
