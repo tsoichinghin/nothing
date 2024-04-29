@@ -11,7 +11,7 @@ while true; do
         else
             echo "PacketShare.exe not running. Restarting..."
             wine ~/.wine/drive_c/Program\ Files/PacketShare/PacketShare.exe &
-            sleep 30
+            sleep 90
             python3 ~/check.py
             echo "PacketShare.exe restarted."
         fi
