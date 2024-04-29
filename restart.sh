@@ -18,4 +18,5 @@ while true; do
         sleep 10
     done
     python3 ~/check.py
+    echo "The loading window was checked."
 done
