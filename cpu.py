@@ -25,5 +25,4 @@ def start_server():
     httpd.serve_forever()
 
 if __name__ == '__main__':
-    # 启动 HTTP 服务器
     start_server()
