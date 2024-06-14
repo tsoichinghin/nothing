@@ -17,7 +17,6 @@ while true; do
                 echo "$PID" | sudo tee -a "$CGROUP_PATH/tasks"
             fi
         done
-        rm "$tmpfile"
     else
         echo "FeelingSurfViewer process not found"
         sudo truncate -s 0 "$CGROUP_PATH/tasks"
