@@ -19,5 +19,5 @@ while true; do
         echo "FeelingSurfViewer process not found"
         sudo truncate -s 0 "$CGROUP_PATH/tasks"
     fi
-    sleep 1
+    sleep 2
 done
