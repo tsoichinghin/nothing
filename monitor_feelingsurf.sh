@@ -14,7 +14,7 @@ while true; do
         tmpfile=$(mktemp)
         echo "$PIDS" > "$tmpfile"
         sudo grep -v -F -x -f "$tmpfile" "$CGROUP_PATH/tasks" | sudo tee "$CGROUP_PATH/tasks" > /dev/null
-        for PID in $PIDS; do
+        for PID in $tempfile; do
             if ! sudo grep -q "^$PID$" "$CGROUP_PATH/tasks"; then
                 echo "Adding PID $PID to $CGROUP_PATH/tasks"
                 echo "$PID" | sudo tee -a "$CGROUP_PATH/tasks"
