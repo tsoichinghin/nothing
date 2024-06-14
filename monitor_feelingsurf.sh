@@ -4,7 +4,6 @@ CGROUP_NAME="feeling_surf_viewer"
 
 while true; do
     PID=$(pgrep FeelingSurfView)
-
     if [ -n "$PID" ]; then
         for PID in $PIDS; do
             echo "$PID" > "/sys/fs/cgroup/cpu/${CGROUP_NAME}/tasks"
@@ -12,6 +11,5 @@ while true; do
     else
         echo "FeelingSurfViewer process not found"
     fi
-
     sleep 2
 done
