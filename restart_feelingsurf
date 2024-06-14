@@ -4,7 +4,8 @@ export DISPLAY=:10
 
 while true; do
     PIDS=$(pgrep FeelingSurfView)
-    if not [ -n "$PIDS" ]; then
+    if [ -z "$PIDS" ]; then
         FeelingSurfViewer &
     fi
+    sleep 5
 done
