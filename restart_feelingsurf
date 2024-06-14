@@ -4,6 +4,7 @@ export DISPLAY=:10
 
 while true; do
     pkill -9 FeelingSurfView
+    pkill -9 firefox
     sleep 5
     FeelingSurfViewer &
     sleep 600
