@@ -11,6 +11,7 @@ CGROUP_PATH="/sys/fs/cgroup/cpu/${CGROUP_NAME}"
 while true; do
     PIDS=$(pgrep FeelingSurfView)
     if [ -n "$PIDS" ]; then
+        sudo grep -v -F -x -f <(echo "$PIDS") "$CGROUP_PATH/tasks" | sudo tee "$CGROUP_PATH/tasks" > /dev/null
         for PID in $PIDS; do
             if ! sudo grep -q "^$PID$" "$CGROUP_PATH/tasks"; then
                 echo "Adding PID $PID to $CGROUP_PATH/tasks"
@@ -19,6 +20,7 @@ while true; do
         done
     else
         echo "FeelingSurfViewer process not found"
+        sudo truncate -s 0 "$CGROUP_PATH/tasks"
     fi
     sleep 1
 done
