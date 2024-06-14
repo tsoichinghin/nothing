@@ -3,9 +3,13 @@
 export DISPLAY=:10
 
 while true; do
-    pkill -9 FeelingSurfView
-    pkill -9 firefox
+    firefox_pid=$(pgrep firefox)
+    feelingsurf_pids=$(pgrep FeelingSurfView)
+    if [ -n "$firefox_pid" ]; then
+        pkill -9 firefox
+    fi
+    if [ -z "$feelingsurf_pids" ]; then
+        FeelingSurfViewer &
+    fi
     sleep 5
-    FeelingSurfViewer &
-    sleep 1800
 done
