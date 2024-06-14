@@ -11,5 +11,5 @@ while true; do
     else
         echo "FeelingSurfViewer process not found"
     fi
-    sleep 2
+    sleep 1
 done
