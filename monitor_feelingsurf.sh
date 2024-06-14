@@ -5,9 +5,7 @@ CGROUP_NAME="feeling_surf_viewer"
 while true; do
     PIDS=$(pgrep FeelingSurfView)
     if [ -n "$PIDS" ]; then
-        for PID in $PIDS; do
-            echo "$PID" | sudo tee -a "/sys/fs/cgroup/cpu/${CGROUP_NAME}/tasks"
-        done
+        echo "$PIDS" | sudo tee "/sys/fs/cgroup/cpu/${CGROUP_NAME}/tasks"
     else
         echo "FeelingSurfViewer process not found"
     fi
