@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export DISPLAY=:10
+
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root"
   exit
@@ -17,7 +19,7 @@ while true; do
         done
     else
         echo "FeelingSurfViewer process not found"
-        sudo truncate -s 0 "$CGROUP_PATH/tasks"
+        FeelingSurfViewer &
     fi
     sleep 2
 done
