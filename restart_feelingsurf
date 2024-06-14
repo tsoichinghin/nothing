@@ -1,0 +1,10 @@
+#!/bin/bash
+
+export DISPLAY=:10
+
+while true; do
+    PIDS=$(pgrep FeelingSurfView)
+    if not [ -n "$PIDS" ]; then
+        FeelingSurfViewer &
+    fi
+done
