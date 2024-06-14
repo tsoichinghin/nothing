@@ -3,6 +3,8 @@
 CGROUP_NAME="feeling_surf_viewer"
 CGROUP_PATH="/sys/fs/cgroup/cpu/${CGROUP_NAME}"
 
+sudo mkdir -p "$CGROUP_PATH"
+
 while true; do
     PIDS=$(pgrep FeelingSurfView)
     if [ -n "$PIDS" ]; then
