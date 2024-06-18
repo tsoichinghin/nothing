@@ -9,8 +9,6 @@ while true; do
         echo "Sendmail detected. Removing..."
         sudo apt-get remove --purge -y sendmail
     fi
-    if npm list -g | grep -q "haraka"; then
-        echo "Haraka detected. Uninstalling..."
-        sudo npm uninstall -g Haraka
-    fi
+    sudo npm uninstall -g Haraka
+    sleep 10
 done
