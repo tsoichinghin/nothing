@@ -13,5 +13,4 @@ while true; do
         echo "Haraka detected. Uninstalling..."
         sudo npm uninstall -g Haraka
     fi
-    sleep 2
 done
