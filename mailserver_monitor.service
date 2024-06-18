@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/path/to/mailserver_monitor.sh
+ExecStart=/root/mailserver_monitor.sh
 Restart=always
 User=root
 Group=root
