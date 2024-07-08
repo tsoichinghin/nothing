@@ -24,5 +24,8 @@ def close_app():
         pyautogui.leftClick(1264, 475)
         print("Software updater closed.")
         time.sleep(5)
+        pyautogui.leftClick(1264, 419)
+        print("Software updater 2 closed.")
+        time.sleep(5)
 
 close_app()
