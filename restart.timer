@@ -1,0 +1,10 @@
+[Unit]
+Description=Run my-service every five days
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5d
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
