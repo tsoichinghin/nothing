@@ -1,6 +1,5 @@
 [Unit]
 Description=Run restart service every five days
-Unit=restart.service
 
 [Timer]
 OnBootSec=5min
