@@ -4,7 +4,7 @@ Unit=restart.service
 
 [Timer]
 OnBootSec=5min
-OnUnitActiveSec=5d
+OnUnitActiveSec=10d
 AccuracySec=1min
 
 [Install]
