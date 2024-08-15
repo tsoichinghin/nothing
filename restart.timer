@@ -1,5 +1,5 @@
 [Unit]
-Description=Run restart service every five days
+Description=Run restart service every ten days
 
 [Timer]
 OnBootSec=5min
