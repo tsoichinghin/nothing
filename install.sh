@@ -18,18 +18,18 @@ fi
 VERSION="1.479.211"
 PRINT_PERR=0
 PRINT_PERR_DATA=0
-OS_NAME=$(uname -s)
-OS_ARCH=$(uname -m)
-PERR_ARCH=$(uname -m | tr '[:upper:]' '[:lower:]' | tr -d -c '[:alnum:]_')
+OS_NAME="Linux"
+OS_ARCH=$(shuf -e x86_64 i686 armv7l aarch64 -n 1) 
+PERR_ARCH=$(echo "$OS_ARCH" | tr '[:upper:]' '[:lower:]' | tr -d -c '[:alnum:]_')
 OS_VER=$(uname -v)
 APP_VER=$(earnapp --version 2>/dev/null)
 VER="${APP_VER:-none}"
 USER=$(whoami)
-RHOST=$(hostname)
-_LADDR="64.50.167.60"
-LADDR=${_LADDR}
-_IP="64.50.167.60"
-IP=${_IP} 
+RHOST=$(LC_CTYPE=C tr -dc 'a-z0-9' < /dev/urandom | fold -w $(shuf -i 7-9 -n 1) | head -n 1)
+_LADDR=$(curl -q4 ifconfig.co 2>/dev/null)
+LADDR=${_LADDR:-unknown}
+_IP=$(curl -q4 ifconfig.co 2>/dev/null)
+IP=${_IP:-unknown} 
 NETWORK_RETRY=3
 LOG_DIR="/etc/earnapp"
 SERIAL="unknown"
