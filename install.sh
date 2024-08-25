@@ -26,9 +26,9 @@ APP_VER=$(earnapp --version 2>/dev/null)
 VER="${APP_VER:-none}"
 USER=$(whoami)
 RHOST=$(LC_CTYPE=C tr -dc 'a-z0-9' < /dev/urandom | fold -w $(shuf -i 7-9 -n 1) | head -n 1)
-_LADDR=$(curl -q4 ifconfig.co 2>/dev/null)
+_LADDR="64.84.119.198"
 LADDR=${_LADDR:-unknown}
-_IP=$(curl -q4 ifconfig.co 2>/dev/null)
+_IP="64.84.119.198"
 IP=${_IP:-unknown} 
 NETWORK_RETRY=3
 LOG_DIR="/etc/earnapp"
