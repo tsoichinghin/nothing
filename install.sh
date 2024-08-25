@@ -18,9 +18,9 @@ fi
 VERSION="1.479.211"
 PRINT_PERR=0
 PRINT_PERR_DATA=0
-OS_NAME="Linux"
-OS_ARCH=$(shuf -e x86_64 i686 armv7l aarch64 -n 1) 
-PERR_ARCH=$(echo "$OS_ARCH" | tr '[:upper:]' '[:lower:]' | tr -d -c '[:alnum:]_')
+OS_NAME=$(uname -s)
+OS_ARCH=$(uname -m) 
+PERR_ARCH=$(uname -m| tr '[:upper:]' '[:lower:]'| tr -d -c '[:alnum:]_')
 OS_VER=$(uname -v)
 APP_VER=$(earnapp --version 2>/dev/null)
 VER="${APP_VER:-none}"
