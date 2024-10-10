@@ -2,17 +2,19 @@ import psutil
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-def check_remmina_rdp_connection(remote_ip):
+def check_remmina_rdp_connection():
+    # Find the remmina process
     for proc in psutil.process_iter(['pid', 'name']):
         if proc.info['name'] == 'remmina':
             remmina_pid = proc.info['pid']
             break
     else:
         return False
-    
+
+    # Check if remmina has an established RDP connection
     connections = psutil.net_connections(kind='inet')
     for conn in connections:
-        if conn.pid == remmina_pid and conn.raddr and conn.raddr.ip == remote_ip and conn.status == 'ESTABLISHED':
+        if conn.pid == remmina_pid and conn.status == 'ESTABLISHED':
             return True
     return False
 
