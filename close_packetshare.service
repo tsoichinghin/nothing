@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/bin/bash /root/close_pacetshare.sh
+ExecStart=/bin/bash /root/close_packetshare.sh
 Restart=always
 RestartSec=10
 
