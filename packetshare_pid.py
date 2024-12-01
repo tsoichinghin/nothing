@@ -25,16 +25,16 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', 'text/plain')
             self.end_headers()
-            self.wfile.write(str(rdp_status).encode())
+            self.wfile.write(str(packetshare_status).encode())
         else:
             self.send_response(404)
             self.end_headers()
             self.wfile.write(b'Not Found')
 
 def start_server():
-    server_address = ('', 3001)
+    server_address = ('', 3002)
     httpd = HTTPServer(server_address, RequestHandler)
-    print('Starting server on port 3001...')
+    print('Starting server on port 3002...')
     httpd.serve_forever()
 
 if __name__ == '__main__':
