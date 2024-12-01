@@ -1,0 +1,12 @@
+[Unit]
+Description=Close PacketShare Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /root/close_pacetshare.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
