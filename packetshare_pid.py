@@ -12,6 +12,7 @@ def check_packetshare():
         for proc in psutil.process_iter(['pid', 'name']):
             if proc.info['name'] == 'PacketShare.exe':
                 packetshare_pid = proc.info['pid']
+                packetshare_status = True
                 break
 
         if packetshare_pid == None:
