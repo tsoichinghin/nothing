@@ -10,7 +10,7 @@ while true; do
             echo "PacketShare.exe were running."
             cpu_usage=$(top -b -n 1 -p "$packetshare_pid" | awk 'NR>7 {print $9}')
             cpu_usage=${cpu_usage%%.*}
-            if [ "$cpu_usage" -gt 30 ]; then
+            if [ "$cpu_usage" -gt 80 ]; then
                 echo "CPU usage is $cpu_usage%. Terminating PacketShare.exe."
                 pkill -9 "PacketShare.exe"
             fi
