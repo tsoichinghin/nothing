@@ -1,8 +1,8 @@
 [Unit]
-Description=Run reboot.service every hour at the start of the hour
+Description=Run reboot.service every 2 hours at the start of the hour
 
 [Timer]
-OnCalendar=*:00
+OnCalendar=*:00/2
 Persistent=true
 
 [Install]
