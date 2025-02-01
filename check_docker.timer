@@ -1,0 +1,10 @@
+[Unit]
+Description=check docker container every hour
+
+[Timer]
+OnBootSec=30min
+OnUnitActiveSec=1h
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
