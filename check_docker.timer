@@ -1,9 +1,9 @@
 [Unit]
-Description=check docker container every hour
+Description=check docker container every 3 hours
 
 [Timer]
 OnBootSec=30min
-OnUnitActiveSec=1h
+OnUnitActiveSec=3h
 AccuracySec=1min
 
 [Install]
