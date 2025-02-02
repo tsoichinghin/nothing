@@ -1,5 +1,5 @@
 [Unit]
-Description=Check if qmcgaw/gluetun container isn't running but other running and take action
+Description=Check if qmcgaw/gluetun container isnt running but other running and take action
 
 [Service]
 Type=oneshot
