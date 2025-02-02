@@ -4,3 +4,4 @@ Description=Check if qmcgaw/gluetun container isnt running but other running and
 [Service]
 Type=oneshot
 ExecStart=/root/check_docker.sh
+RemainAfterExit=no
