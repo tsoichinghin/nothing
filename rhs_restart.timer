@@ -1,9 +1,9 @@
 [Unit]
-Description=Run restart service every three hours
+Description=Run restart service every day
 
 [Timer]
 OnBootSec=5min
-OnUnitActiveSec=3h
+OnUnitActiveSec=24h
 AccuracySec=1min
 
 [Install]
