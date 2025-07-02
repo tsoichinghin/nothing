@@ -110,6 +110,6 @@ while true; do
         echo "Service restart completed for $container"
     done
 
-    echo "Sleeping for 3 hour..."
+    echo "Sleeping for 2 days..."
     sleep 172800
 done
