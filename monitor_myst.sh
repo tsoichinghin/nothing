@@ -111,5 +111,5 @@ while true; do
     done
 
     echo "Sleeping for 3 hour..."
-    sleep 10800
+    sleep 172800
 done
