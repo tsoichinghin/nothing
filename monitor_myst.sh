@@ -10,10 +10,12 @@ check_docker_service() {
   echo "Checking Docker service status..." | tee -a /var/log/monitor_myst.log
   if ! systemctl is-active --quiet docker; then
     echo "Docker service is not active, attempting to start..." | tee -a /var/log/monitor_myst.log
-    output=$(timeout 300 sudo systemctl start docker 2>&1)
+    output=$(timeout 600 sudo systemctl start docker 2>&1)
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
       echo "Failed to start Docker service: $output" | tee -a /var/log/monitor_myst.log
+      echo "Systemctl start docker timed out, initiating reboot..." | tee -a /var/log/monitor_myst.log
+      sudo reboot
       return 1
     fi
     sleep 10
@@ -43,14 +45,33 @@ restart_docker_service() {
   else
     echo "Failed to restart Docker service (exit code: $exit_code): $output" | tee -a /var/log/monitor_myst.log
   fi
-
-  # 如果停止/啟動失敗，執行系統重啟
   echo "All attempts to restart Docker failed, initiating system reboot..." | tee -a /var/log/monitor_myst.log
   sudo reboot
   return 1
 }
 
-# 函數：移除容器（帶重試和深度清理，保護 Volume）
+# 函數：清理容器元數據（僅刪除元數據目錄）
+clean_container_metadata() {
+  local container=$1
+  local container_id
+  container_id=$(timeout 180 docker ps -a --filter "name=$container" --format "{{.ID}}" 2>/dev/null)
+  if [ -n "$container_id" ]; then
+    echo "Cleaning up container metadata for $container (ID: $container_id)..." | tee -a /var/log/monitor_myst.log
+    sudo find /var/lib/docker/containers -type d -name "*$container_id*" -exec rm -rf {} \; 2>/dev/null
+    if [ $? -eq 0 ]; then
+      echo "Successfully cleaned up metadata for $container" | tee -a /var/log/monitor_myst.log
+      return 0
+    else
+      echo "Failed to clean up metadata for $container" | tee -a /var/log/monitor_myst.log
+      return 1
+    fi
+  else
+    echo "No container ID found for $container, skipping metadata cleanup" | tee -a /var/log/monitor_myst.log
+    return 0
+  fi
+}
+
+# 函數：移除容器（僅執行 docker rm -f 和進程殺死）
 remove_container() {
   local container=$1
   local max_attempts=3
@@ -87,25 +108,6 @@ remove_container() {
       sleep 5
     else
       echo "Failed to inspect $container or no valid PID: $CONTAINER_PID" | tee -a /var/log/monitor_myst.log
-      # 嘗試手動清理容器元數據（僅限容器數據，不觸及 Volume）
-      container_id=$(timeout 180 docker ps -a --filter "name=$container" --format "{{.ID}}" 2>/dev/null)
-      if [ -n "$container_id" ]; then
-        echo "Attempting to clean up container $container metadata (preserving volumes)..." | tee -a /var/log/monitor_myst.log
-        sudo systemctl stop docker
-        sudo find /var/lib/docker/containers -type d -name "*$container_id*" -exec rm -rf {} \;
-        sudo systemctl start docker
-        sleep 10
-        if ! check_docker_service; then
-          echo "Docker service failed to restart after cleanup, initiating reboot..." | tee -a /var/log/monitor_myst.log
-          sudo reboot
-          return 1
-        fi
-        # 檢查容器是否已被移除
-        if ! docker ps -a --filter "name=$container" --format "{{.Names}}" | grep -q "$container"; then
-          echo "Successfully cleaned up $container (volume preserved)" | tee -a /var/log/monitor_myst.log
-          return 0
-        fi
-      fi
     fi
 
     # 再次嘗試移除
@@ -129,9 +131,9 @@ remove_container() {
 handle_docker_restart() {
   echo "Handling Docker restart at $(date)" | tee -a /var/log/monitor_myst.log
 
-  # 移除 Exited 或 Restarting 容器
+  # 獲取所有處於 exited 或 restarting 狀態的 myst 和 vpni 容器
   local output
-  output=$(timeout 300 docker ps -a --filter "status=exited" --filter "status=restarting" --filter "name=myst|vpni" --format "{{.Names}}" 2>&1)
+  output=$(timeout 300 docker ps -a --filter "name=myst|vpni" --filter "status=exited" --filter "status=restarting" --format "{{.Names}}" 2>&1)
   local exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Error getting container list: $output" | tee -a /var/log/monitor_myst.log
@@ -141,80 +143,82 @@ handle_docker_restart() {
     fi
     return 1
   fi
+
+  # 從容器名稱中提取數字列表
+  local numbers=()
   for c in $output; do
-    remove_container "$c"
+    num=$(echo "$c" | grep -oE '[0-9]+$')
+    if [ -n "$num" ] && ! [[ " ${numbers[*]} " =~ " $num " ]]; then
+      numbers+=("$num")
+    fi
+  done
+  echo "Found containers with numbers: ${numbers[*]}" | tee -a /var/log/monitor_myst.log
+
+  # 停止 Docker 服務
+  echo "Stopping Docker service for metadata cleanup..." | tee -a /var/log/monitor_myst.log
+  output=$(timeout 600 sudo systemctl stop docker 2>&1)
+  exit_code=$?
+  if [ $exit_code -ne 0 ]; then
+    echo "Failed to stop Docker service or timed out: $output" | tee -a /var/log/monitor_myst.log
+    echo "Systemctl stop docker timed out, initiating reboot..." | tee -a /var/log/monitor_myst.log
+    sudo reboot
+    return 1
+  fi
+
+  # 清理所有 myst 和 vpni 容器的元數據
+  for num in "${numbers[@]}"; do
+    clean_container_metadata "myst$num"
+    clean_container_metadata "vpni$num"
+  done
+
+  # 啟動 Docker 服務
+  echo "Starting Docker service after metadata cleanup..." | tee -a /var/log/monitor_myst.log
+  output=$(timeout 600 sudo systemctl start docker 2>&1)
+  exit_code=$?
+  if [ $exit_code -ne 0 ]; then
+    echo "Failed to start Docker service or timed out: $output" | tee -a /var/log/monitor_myst.log
+    echo "Systemctl start docker timed out, initiating reboot..." | tee -a /var/log/monitor_myst.log
+    sudo reboot
+    return 1
+  fi
+  sleep 10
+  if ! check_docker_service; then
+    echo "Docker service failed to restart after metadata cleanup, initiating reboot..." | tee -a /var/log/monitor_myst.log
+    sudo reboot
+    return 1
+  fi
+
+  # 移除所有 myst 和 vpni 容器
+  for num in "${numbers[@]}"; do
+    remove_container "myst$num"
+    remove_container "vpni$num"
   done
 
   # 獲取所有 /root/ovpn 中的 container_number
+  local all_numbers
   all_numbers=($(ls /root/ovpn/ip*.ovpn 2>/dev/null | grep -oE '[0-9]+' | sort -n))
-  ovpn_count=${#all_numbers[@]}
+  local ovpn_count=${#all_numbers[@]}
   echo "Found $ovpn_count OVPN files: ${all_numbers[*]}" | tee -a /var/log/monitor_myst.log
 
   # 獲取最小 container_number
-  min_container_number=${all_numbers[0]}
+  local min_container_number=${all_numbers[0]}
   [ -z "$min_container_number" ] && {
     echo "No OVPN files found, exiting handle_docker_restart" | tee -a /var/log/monitor_myst.log
     return 1
   }
 
-  # 獲取現有 myst 和 vpni 容器
-  local myst_numbers vpni_numbers
-  output=$(timeout 300 docker ps -a --filter "name=myst" --format "{{.Names}}" 2>&1 | grep -oE '[0-9]+$' | sort -n)
-  exit_code=$?
-  if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
-    echo "Error getting myst containers: $output" | tee -a /var/log/monitor_myst.log
-    if ! restart_docker_service; then
-      echo "Exiting handle_docker_restart due to Docker service failure" | tee -a /var/log/monitor_myst.log
-      return 1
-    fi
-    return 1
-  fi
-  myst_numbers=($output)
-  output=$(timeout 300 docker ps -a --filter "name=vpni" --format "{{.Names}}" 2>&1 | grep -oE '[0-9]+$' | sort -n)
-  exit_code=$?
-  if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
-    echo "Error getting vpni containers: $output" | tee -a /var/log/monitor_myst.log
-    if ! restart_docker_service; then
-      echo "Exiting handle_docker_restart due to Docker service failure" | tee -a /var/log/monitor_myst.log
-      return 1
-    fi
-    return 1
-  fi
-  vpni_numbers=($output)
-  echo "Existing myst containers: ${myst_numbers[*]}" | tee -a /var/log/monitor_myst.log
-  echo "Existing vpni containers: ${vpni_numbers[*]}" | tee -a /var/log/monitor_myst.log
-
-  # 找出缺失的 container_number（若 myst 或 vpni 任一缺失）
-  missing_numbers=()
+  # 為所有 container_number 重新啟動容器
   for num in "${all_numbers[@]}"; do
-    if ! echo "${myst_numbers[@]}" | grep -qw "$num" || ! echo "${vpni_numbers[@]}" | grep -qw "$num"; then
-      missing_numbers+=("$num")
-    fi
-  done
-  echo "Missing container numbers: ${missing_numbers[*]}" | tee -a /var/log/monitor_myst.log
-
-  # 為缺失的 container_number 分配 myst_port 並重新啟動
-  for num in "${missing_numbers[@]}"; do
-    myst_port=$((40001 + num - min_container_number))
-    ovpn_file_path="/root/ovpn/ip${num}.ovpn"
-    ovpn_file="ip${num}.ovpn"
+    local myst_port=$((40001 + num - min_container_number))
+    local ovpn_file_path="/root/ovpn/ip${num}.ovpn"
+    local ovpn_file="ip${num}.ovpn"
     if [ ! -f "$ovpn_file_path" ]; then
       echo "OVPN file $ovpn_file_path not found, skipping container $num" | tee -a /var/log/monitor_myst.log
       continue
     fi
 
-    # 如果 myst{num} 或 vpni{num} 存在，先移除
-    if echo "${myst_numbers[@]}" | grep -qw "$num"; then
-      echo "Removing existing myst$num..." | tee -a /var/log/monitor_myst.log
-      remove_container "myst$num" || continue
-    fi
-    if echo "${vpni_numbers[@]}" | grep -qw "$num"; then
-      echo "Removing existing vpni$num..." | tee -a /var/log/monitor_myst.log
-      remove_container "vpni$num" || continue
-    fi
-
-    echo "Restarting vpni$num and myst$num with myst_port $myst_port..." | tee -a /var/log/monitor_myst.log
-    output=$(timeout 300 docker run -d --restart always --network vpn${num} --cpu-period=100000 --cpu-quota=20000 \
+    echo "Starting vpni$num and myst$num with myst_port $myst_port..." | tee -a /var/log/monitor_myst.log
+    output=$(timeout 300 docker run -d --restart always --network vpn${num} --cpu-period=100000 --cpu-quota=10000 \
       --log-driver json-file --log-opt max-size=10m -p ${myst_port}:4449 \
       --cap-add=NET_ADMIN --device=/dev/net/tun --memory="64m" \
       -v /root/ovpn:/vpn -e OVPN_FILE=${ovpn_file} --name vpni${num} tsoichinghin/ovpn:latest 2>&1)
@@ -225,9 +229,10 @@ handle_docker_restart() {
     fi
     output=$(timeout 300 docker run -d --restart always --network container:vpni${num} --cpu-period=100000 \
       --log-driver json-file --log-opt max-size=10m --memory="64m" \
-      --cpu-quota=20000 --name myst${num} --cap-add NET_ADMIN \
+      --cpu-quota=10000 --name myst${num} --cap-add NET_ADMIN \
       -v myst${num}:/var/lib/mysterium-node tsoichinghin/myst:latest \
-      --ui.address=0.0.0.0 --tequilapi.address=0.0.0.0 service --agreed-terms-and-conditions 2>&1)
+      --ui.address=0.0.0.0 --tequilapi.address=0.0.0.0 --data-dir=/var/lib/mysterium-node \
+      service --agreed-terms-and-conditions 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to start myst${num}: $output" | tee -a /var/log/monitor_myst.log
@@ -254,11 +259,11 @@ check_container_status() {
   return 0
 }
 
-# 函數：日誌檢查
+# 函數：檢查容器日誌
 check_container_logs() {
   local container=$1
   local output
-  output=$(timeout 180 docker logs --tail 20 "$container" 2>&1)
+  output=$(timeout 180 docker logs --tail 10 "$container" 2>&1)
   local exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Failed to get logs for $container: $output" | tee -a /var/log/monitor_myst.log
@@ -266,58 +271,21 @@ check_container_logs() {
       return 1
     fi
     sleep 60
-  elif echo "$output" | grep -qi "failed to open boltDB: timeout"; then
-    echo "BoltDB timeout detected in $container, removing and restarting..." | tee -a /var/log/monitor_myst.log
-    num=$(echo "$container" | grep -oE '[0-9]+$')
-    # 備份 Volume
-    backup_dir="/root/backup_myst${num}_$(date +%F_%H%M%S)"
-    echo "Backing up Volume for $container to $backup_dir..." | tee -a /var/log/monitor_myst.log
-    cp -r "/var/lib/docker/volumes/myst${num}/_data" "$backup_dir"
-    # 刪除 bolt.db
-    rm "/var/lib/docker/volumes/myst${num}/_data/bolt.db"
-    # 移除並重啟容器
-    remove_container "$container" || return 1
-    remove_container "vpni${num}" || return 1
-    echo "Restarting vpni${num} and myst${num}..." | tee -a /var/log/monitor_myst.log
-    myst_port=$((40001 + num - min_container_number))
-    ovpn_file_path="/root/ovpn/ip${num}.ovpn"
-    ovpn_file="ip${num}.ovpn"
-    if [ ! -f "$ovpn_file_path" ]; then
-      echo "OVPN file $ovpn_file_path not found, skipping $container" | tee -a /var/log/monitor_myst.log
+  else
+    # 檢查容器狀態是否為 exited 或 restarting
+    local container_status
+    container_status=$(docker ps -a --filter "name=$container" --format "{{.Status}}" 2>/dev/null)
+    if [[ "$container_status" =~ "Exited" || "$container_status" =~ "Restarting" ]]; then
+      echo "Container $container is in $container_status status, triggering handle_docker_restart..." | tee -a /var/log/monitor_myst.log
+      handle_docker_restart
       return 1
     fi
-    output=$(timeout 300 docker run -d --restart always --network vpn${num} --cpu-period=100000 --cpu-quota=10000 \
-      --log-driver json-file --log-opt max-size=10m -p ${myst_port}:4449 \
-      --cap-add=NET_ADMIN --device=/dev/net/tun --memory="64m" \
-      -v /root/ovpn:/vpn -e OVPN_FILE="/vpn/ip${num}.ovpn" --name vpni${num} tsoichinghin/ovpn:latest 2>&1)
-    exit_code=$?
-    if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
-      echo "Failed to start vpni${num}: $output" | tee -a /var/log/monitor_myst.log
-      return 1
-    fi
-    output=$(timeout 300 docker run -d --restart always --network container:vpni${num} --cpu-period=100000 \
-      --log-driver json-file --log-opt max-size=10m --memory="64m" \
-      --cpu-quota=10000 --name myst${num} --cap-add NET_ADMIN \
-      -v myst${num}:/var/lib/mysterium-node tsoichinghin/myst:latest \
-      --ui.address=0.0.0.0 --tequilapi.address=0.0.0.0 service --agreed-terms-and-conditions 2>&1)
-    exit_code=$?
-    if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
-      echo "Failed to start myst${num}: $output" | tee -a /var/log/monitor_myst.log
-      return 1
-    fi
-    sleep 60
-  elif echo "$output" | grep -qi "timeout"; then
-    echo "Timeout detected in $container, restarting..." | tee -a /var/log/monitor_myst.log
-    if ! check_container_status "$container" "restart"; then
-      return 1
-    fi
-    sleep 60
   fi
   return 0
 }
 
+# 主循環
 first_run=true
-
 while true; do
   echo "Checking myst containers at $(date)" | tee -a /var/log/monitor_myst.log
   if [ "$first_run" = true ]; then
@@ -389,7 +357,6 @@ while true; do
       continue
     fi
   fi
-
   for container in $containers; do
     echo "Processing container: $container" | tee -a /var/log/monitor_myst.log
     if ! check_container_logs "$container"; then
@@ -623,8 +590,6 @@ while true; do
       continue
     fi
   done
-
-  # 提現流程
   current_time=$(date +%s)
   if [ "$current_time" -ge "$next_payout_date" ]; then
     echo "Payout time reached, processing withdrawals for all containers..." | tee -a /var/log/monitor_myst.log
@@ -735,7 +700,6 @@ while true; do
     next_payout_date=$((current_time + 30*24*60*60))
     echo "Next payout date updated: $(date -d @$next_payout_date)" | tee -a /var/log/monitor_myst.log
   fi
-
   echo "Sleeping for 3 hours..." | tee -a /var/log/monitor_myst.log
   sleep 10800
 done
