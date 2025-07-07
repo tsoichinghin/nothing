@@ -5,6 +5,100 @@ current_time=$(date +%s)
 next_payout_date=$((current_time + 30*24*60*60))
 echo "Initial next payout date: $(date -d @$next_payout_date)" | tee -a /var/log/monitor_myst.log
 
+# 函數：檢查 Docker 服務狀態
+check_docker_service() {
+  echo "Checking Docker service status..." | tee -a /var/log/monitor_myst.log
+  sudo systemctl restart docker
+  sleep 60
+  if ! systemctl is-active --quiet docker; then
+    echo "Docker service is not active, attempting to start..." | tee -a /var/log/monitor_myst.log
+    output=$(sudo systemctl start docker 2>&1)
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+      echo "Failed to start Docker service: $output" | tee -a /var/log/monitor_myst.log
+      return 1
+    fi
+    sleep 10
+    if ! systemctl is-active --quiet docker; then
+      echo "Docker service still not active after start attempt" | tee -a /var/log/monitor_myst.log
+      return 1
+    fi
+  fi
+  echo "Docker service is active" | tee -a /var/log/monitor_myst.log
+  return 0
+}
+
+# 函數：安全重啟 Docker 服務
+restart_docker_service() {
+  echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
+  output=$(sudo systemctl restart docker 2>&1)
+  local exit_code=$?
+  if [ $exit_code -ne 0 ]; then
+    echo "Failed to restart Docker service: $output" | tee -a /var/log/monitor_myst.log
+    return 1
+  fi
+  echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
+  sleep 60
+  if ! check_docker_service; then
+    echo "Docker service failed to restart" | tee -a /var/log/monitor_myst.log
+    return 1
+  fi
+  return 0
+}
+
+# 函數：移除容器（帶重試和清理）
+remove_container() {
+  local container=$1
+  local max_attempts=3
+  local attempt=1
+
+  while [ $attempt -le $max_attempts ]; do
+    echo "Attempt $attempt to remove container $container..." | tee -a /var/log/monitor_myst.log
+    output=$(timeout 300 docker rm -f "$container" 2>&1)
+    local exit_code=$?
+    if [ $exit_code -eq 0 ] && ! echo "$output" | grep -qi "Error response from daemon"; then
+      echo "Successfully removed $container" | tee -a /var/log/monitor_myst.log
+      return 0
+    fi
+    echo "Failed to remove $container: $output" | tee -a /var/log/monitor_myst.log
+
+    # 檢查是否為“removal in progress”錯誤
+    output=$(timeout 180 docker stop "$container" 2>&1)
+    exit_code=$?
+    if [ $exit_code -ne 0 ] && echo "$output" | grep -qi "Error response from daemon"; then
+      echo "Failed to stop $container: $output" | tee -a /var/log/monitor_myst.log
+    fi
+    sleep 5
+
+    # 嘗試殺死容器進程
+    local CONTAINER_PID
+    CONTAINER_PID=$(timeout 300 docker inspect "$container" 2>&1 | jq -r .[0].State.Pid 2>/dev/null)
+    exit_code=$?
+    if [ $exit_code -eq 0 ] && [ -n "$CONTAINER_PID" ] && [ "$CONTAINER_PID" != "0" ]; then
+      echo "Killing container process PID $CONTAINER_PID for $container..." | tee -a /var/log/monitor_myst.log
+      sudo kill -9 "$CONTAINER_PID" 2>/dev/null
+      sleep 5
+    else
+      echo "Failed to inspect $container or no valid PID: $CONTAINER_PID" | tee -a /var/log/monitor_myst.log
+    fi
+
+    # 再次嘗試移除
+    output=$(timeout 300 docker rm -f "$container" 2>&1)
+    exit_code=$?
+    if [ $exit_code -eq 0 ] && ! echo "$output" | grep -qi "Error response from daemon"; then
+      echo "Successfully removed $container after retry" | tee -a /var/log/monitor_myst.log
+      return 0
+    fi
+
+    echo "Retry $attempt failed for $container: $output" | tee -a /var/log/monitor_myst.log
+    attempt=$((attempt + 1))
+    sleep 10
+  done
+
+  echo "Failed to remove $container after $max_attempts attempts, skipping..." | tee -a /var/log/monitor_myst.log
+  return 1
+}
+
 # 函數：處理 Docker 重啟後的容器
 handle_docker_restart() {
   echo "Handling Docker restart at $(date)" | tee -a /var/log/monitor_myst.log
@@ -15,41 +109,14 @@ handle_docker_restart() {
   local exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Error getting container list: $output" | tee -a /var/log/monitor_myst.log
-    echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-    sudo systemctl restart docker
-    echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-    sleep 60
+    if ! restart_docker_service; then
+      echo "Exiting handle_docker_restart due to Docker service failure" | tee -a /var/log/monitor_myst.log
+      return 1
+    fi
     return 1
   fi
   for c in $output; do
-    echo "Removing $c (status: Exited or Restarting)..." | tee -a /var/log/monitor_myst.log
-    output=$(timeout 300 docker rm -f "$c" 2>&1)
-    exit_code=$?
-    if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
-      echo "Failed to remove $c, killing process..." | tee -a /var/log/monitor_myst.log
-      local CONTAINER_PID
-      CONTAINER_PID=$(timeout 300 docker inspect "$c" 2>&1 | jq -r .[0].State.Pid 2>/dev/null)
-      exit_code=$?
-      if [ $exit_code -ne 0 ] || echo "$CONTAINER_PID" | grep -qi "Error response from daemon"; then
-        echo "Failed to inspect $c: $CONTAINER_PID" | tee -a /var/log/monitor_myst.log
-        echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-        sudo systemctl restart docker
-        echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-        sleep 60
-        return 1
-      fi
-      [ -n "$CONTAINER_PID" ] && [ "$CONTAINER_PID" != "0" ] && sudo kill -9 "$CONTAINER_PID"
-      output=$(timeout 300 docker rm -f "$c" 2>&1)
-      exit_code=$?
-      if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
-        echo "Failed to remove $c after kill: $output" | tee -a /var/log/monitor_myst.log
-        echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-        sudo systemctl restart docker
-        echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-        sleep 60
-        return 1
-      fi
-    fi
+    remove_container "$c"
   done
 
   # 獲取所有 /root/ovpn 中的 container_number
@@ -70,10 +137,10 @@ handle_docker_restart() {
   exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Error getting myst containers: $output" | tee -a /var/log/monitor_myst.log
-    echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-    sudo systemctl restart docker
-    echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-    sleep 60
+    if ! restart_docker_service; then
+      echo "Exiting handle_docker_restart due to Docker service failure" | tee -a /var/log/monitor_myst.log
+      return 1
+    fi
     return 1
   fi
   myst_numbers=($output)
@@ -81,10 +148,10 @@ handle_docker_restart() {
   exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Error getting vpni containers: $output" | tee -a /var/log/monitor_myst.log
-    echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-    sudo systemctl restart docker
-    echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-    sleep 60
+    if ! restart_docker_service; then
+      echo "Exiting handle_docker_restart due to Docker service failure" | tee -a /var/log/monitor_myst.log
+      return 1
+    fi
     return 1
   fi
   vpni_numbers=($output)
@@ -112,35 +179,17 @@ handle_docker_restart() {
     # 如果 myst{num} 或 vpni{num} 存在，先移除
     if echo "${myst_numbers[@]}" | grep -qw "$num"; then
       echo "Removing existing myst$num..." | tee -a /var/log/monitor_myst.log
-      output=$(timeout 300 docker rm -f "myst$num" 2>&1)
-      exit_code=$?
-      if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
-        echo "Failed to remove myst$num: $output" | tee -a /var/log/monitor_myst.log
-        echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-        sudo systemctl restart docker
-        echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-        sleep 60
-        return 1
-      fi
+      remove_container "myst$num" || continue
     fi
     if echo "${vpni_numbers[@]}" | grep -qw "$num"; then
       echo "Removing existing vpni$num..." | tee -a /var/log/monitor_myst.log
-      output=$(timeout 300 docker rm -f "vpni$num" 2>&1)
-      exit_code=$?
-      if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
-        echo "Failed to remove vpni$num: $output" | tee -a /var/log/monitor_myst.log
-        echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-        sudo systemctl restart docker
-        echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-        sleep 60
-        return 1
-      fi
+      remove_container "vpni$num" || continue
     fi
 
     echo "Restarting vpni$num and myst$num with myst_port $myst_port..." | tee -a /var/log/monitor_myst.log
-    output=$(timeout 300 docker run -d --restart always --network vpn${num} --cpu-period=100000 --cpu-quota=10000 \
+    output=$(timeout 300 docker run -d --restart always --network vpn${num} --cpu-period=100000 --cpu-quota=20000 \
       --log-driver json-file --log-opt max-size=10m -p ${myst_port}:4449 \
-      --cap-add=NET_ADMIN --device=/dev/net/tun --memory="32m" \
+      --cap-add=NET_ADMIN --device=/dev/net/tun --memory="64m" \
       -v /root/ovpn:/vpn -e OVPN_FILE="${ovpn_file}" --name vpni${num} tsoichinghin/ovpn:latest 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
@@ -148,9 +197,9 @@ handle_docker_restart() {
       continue
     fi
     output=$(timeout 300 docker run -d --restart always --network container:vpni${num} --cpu-period=100000 \
-      --log-driver json-file --log-opt max-size=10m --memory="32m" \
-      --cpu-quota=10000 --name myst${num} --cap-add NET_ADMIN \
-      -v myst${num}:/var/lib/mysterium-node tsoichinghin/myst:latest \
+      --log-driver json-file --log-opt max-size=10m --memory="64m" \
+      --cpu-quota=20000 --name myst${num} --cap-add NET_ADMIN \
+      -v myst${num}:/var/lib/mysterium-node tsoichinghost/myst:latest \
       --ui.address=0.0.0.0 --tequilapi.address=0.0.0.0 service --agreed-terms-and-conditions 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
@@ -168,10 +217,10 @@ check_container_status() {
   local exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Error executing docker $cmd $container: $output" | tee -a /var/log/monitor_myst.log
-    echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-    sudo systemctl restart docker
-    echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-    sleep 60
+    if ! restart_docker_service; then
+      echo "Exiting check_container_status due to Docker service failure" | tee -a /var/log/monitor_myst.log
+      return 1
+    fi
     handle_docker_restart
     return 1
   fi
@@ -205,9 +254,16 @@ first_run=true
 while true; do
   echo "Checking myst containers at $(date)" | tee -a /var/log/monitor_myst.log
   if [ "$first_run" = true ]; then
-    sudo systemctl restart docker
-    echo "Waiting 60 seconds for Docker for first restart..." | tee -a /var/log/monitor_myst.log
-    sleep 60
+    if check_docker_service; then
+      echo "Docker service is already running, skipping restart..." | tee -a /var/log/monitor_myst.log
+    else
+      echo "Docker service not running, attempting to start..." | tee -a /var/log/monitor_myst.log
+      if ! restart_docker_service; then
+        echo "Failed to start Docker service, retrying in next loop" | tee -a /var/log/monitor_myst.log
+        sleep 10
+        continue
+      fi
+    fi
     handle_docker_restart
     first_run=false
   fi
@@ -215,10 +271,11 @@ while true; do
   exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Error getting running myst containers: $output" | tee -a /var/log/monitor_myst.log
-    echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-    sudo systemctl restart docker
-    echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-    sleep 60
+    if ! restart_docker_service; then
+      echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+      sleep 10
+      continue
+    fi
     handle_docker_restart
     continue
   fi
@@ -229,10 +286,11 @@ while true; do
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Error getting stopped myst containers: $output" | tee -a /var/log/monitor_myst.log
-      echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-      sudo systemctl restart docker
-      echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-      sleep 60
+      if ! restart_docker_service; then
+        echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+        sleep 10
+        continue
+      fi
       handle_docker_restart
       continue
     fi
@@ -248,10 +306,11 @@ while true; do
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Error getting running myst containers after starting: $output" | tee -a /var/log/monitor_myst.log
-      echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-      sudo systemctl restart docker
-      echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-      sleep 60
+      if ! restart_docker_service; then
+        echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+        sleep 10
+        continue
+      fi
       handle_docker_restart
       continue
     fi
@@ -272,10 +331,11 @@ while true; do
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to get identities for $container: $output" | tee -a /var/log/monitor_myst.log
-      echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-      sudo systemctl restart docker
-      echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-      sleep 60
+      if ! restart_docker_service; then
+        echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+        sleep 10
+        continue
+      fi
       handle_docker_restart
       continue
     fi
@@ -283,10 +343,11 @@ while true; do
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to parse provider_id for $container: $output" | tee -a /var/log/monitor_myst.log
-      echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-      sudo systemctl restart docker
-      echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-      sleep 60
+      if ! restart_docker_service; then
+        echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+        sleep 10
+        continue
+      fi
       handle_docker_restart
       continue
     fi
@@ -297,10 +358,11 @@ while true; do
       exit_code=$?
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
         echo "Failed to cat identities.json for $container: $output" | tee -a /var/log/monitor_myst.log
-        echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-        sudo systemctl restart docker
-        echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-        sleep 60
+        if ! restart_docker_service; then
+          echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+          sleep 10
+          continue
+        fi
         handle_docker_restart
         continue
       else
@@ -311,10 +373,11 @@ while true; do
       exit_code=$?
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
         echo "Failed to run myst cli identities list for $container: $output" | tee -a /var/log/monitor_myst.log
-        echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-        sudo systemctl restart docker
-        echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-        sleep 60
+        if ! restart_docker_service; then
+          echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+          sleep 10
+          continue
+        fi
         handle_docker_restart
         continue
       else
@@ -325,10 +388,11 @@ while true; do
       exit_code=$?
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
         echo "Failed to get container status for $container: $output" | tee -a /var/log/monitor_myst.log
-        echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-        sudo systemctl restart docker
-        echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-        sleep 60
+        if ! restart_docker_service; then
+          echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+          sleep 10
+          continue
+        fi
         handle_docker_restart
         continue
       else
@@ -344,10 +408,11 @@ while true; do
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to get services for $container: $output" | tee -a /var/log/monitor_myst.log
-      echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-      sudo systemctl restart docker
-      echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-      sleep 60
+      if ! restart_docker_service; then
+        echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+        sleep 10
+        continue
+      fi
       handle_docker_restart
       continue
     fi
@@ -355,10 +420,11 @@ while true; do
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to parse services for $container: $output" | tee -a /var/log/monitor_myst.log
-      echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-      sudo systemctl restart docker
-      echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-      sleep 60
+      if ! restart_docker_service; then
+        echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+        sleep 10
+        continue
+      fi
       handle_docker_restart
       continue
     fi
@@ -372,10 +438,11 @@ while true; do
           exit_code=$?
           if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
             echo "Failed to parse service ID for $line in $container: $output" | tee -a /var/log/monitor_myst.log
-            echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-            sudo systemctl restart docker
-            echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-            sleep 60
+            if ! restart_docker_service; then
+              echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+              sleep 10
+              continue
+            fi
             handle_docker_restart
             continue 2
           fi
@@ -386,10 +453,11 @@ while true; do
             exit_code=$?
             if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
               echo "Failed to stop service $service_id in $container: $output" | tee -a /var/log/monitor_myst.log
-              echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-              sudo systemctl restart docker
-              echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-              sleep 60
+              if ! restart_docker_service; then
+                echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+                sleep 10
+                continue
+              fi
               handle_docker_restart
               continue 2
             fi
@@ -408,10 +476,11 @@ while true; do
           exit_code=$?
           if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
             echo "Failed to start scraping with CLI in $container: $output" | tee -a /var/log/monitor_myst.log
-            echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-            sudo systemctl restart docker
-            echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-            sleep 60
+            if ! restart_docker_service; then
+              echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+              sleep 10
+              continue
+            fi
             handle_docker_restart
             continue
           fi
@@ -429,10 +498,11 @@ while true; do
           exit_code=$?
           if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
             echo "Failed to start quic_scraping with CLI in $container: $output" | tee -a /var/log/monitor_myst.log
-            echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-            sudo systemctl restart docker
-            echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-            sleep 60
+            if ! restart_docker_service; then
+              echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+              sleep 10
+              continue
+            fi
             handle_docker_restart
             continue
           fi
@@ -459,10 +529,11 @@ while true; do
           exit_code=$?
           if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
             echo "Failed to start $service with CLI in $container: $output" | tee -a /var/log/monitor_myst.log
-            echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-            sudo systemctl restart docker
-            echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-            sleep 60
+            if ! restart_docker_service; then
+              echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+              sleep 10
+              continue
+            fi
             handle_docker_restart
             continue
           fi
@@ -475,10 +546,11 @@ while true; do
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to clean up files for $container: $output" | tee -a /var/log/monitor_myst.log
-      echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-      sudo systemctl restart docker
-      echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-      sleep 60
+      if ! restart_docker_service; then
+        echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+        sleep 10
+        continue
+      fi
       handle_docker_restart
       continue
     fi
@@ -494,10 +566,11 @@ while true; do
       exit_code=$?
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
         echo "Failed to get identities for $container: $output" | tee -a /var/log/monitor_myst.log
-        echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-        sudo systemctl restart docker
-        echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-        sleep 60
+        if ! restart_docker_service; then
+          echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+          sleep 10
+          continue
+        fi
         handle_docker_restart
         continue
       fi
@@ -505,10 +578,11 @@ while true; do
       exit_code=$?
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
         echo "Failed to parse provider_id for $container: $output" | tee -a /var/log/monitor_myst.log
-        echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-        sudo systemctl restart docker
-        echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-        sleep 60
+        if ! restart_docker_service; then
+          echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+          sleep 10
+          continue
+        fi
         handle_docker_restart
         continue
       fi
@@ -519,10 +593,11 @@ while true; do
         exit_code=$?
         if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
           echo "Failed to cat identities.json for $container: $output" | tee -a /var/log/monitor_myst.log
-          echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-          sudo systemctl restart docker
-          echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-          sleep 60
+          if ! restart_docker_service; then
+            echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+            sleep 10
+            continue
+          fi
           handle_docker_restart
           continue
         else
@@ -533,10 +608,11 @@ while true; do
         exit_code=$?
         if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
           echo "Failed to run myst cli identities list for $container: $output" | tee -a /var/log/monitor_myst.log
-          echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-          sudo systemctl restart docker
-          echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-          sleep 60
+          if ! restart_docker_service; then
+            echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+            sleep 10
+            continue
+          fi
           handle_docker_restart
           continue
         else
@@ -547,10 +623,11 @@ while true; do
         exit_code=$?
         if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
           echo "Failed to get container status for $container: $output" | tee -a /var/log/monitor_myst.log
-          echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-          sudo systemctl restart docker
-          echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-          sleep 60
+          if ! restart_docker_service; then
+            echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+            sleep 10
+            continue
+          fi
           handle_docker_restart
           continue
         else
@@ -563,10 +640,11 @@ while true; do
       exit_code=$?
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
         echo "Withdrawal failed for $container: $output" | tee -a /var/log/monitor_myst.log
-        echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-        sudo systemctl restart docker
-        echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-        sleep 60
+        if ! restart_docker_service; then
+          echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+          sleep 10
+          continue
+        fi
         handle_docker_restart
         continue
       else
@@ -576,10 +654,11 @@ while true; do
       exit_code=$?
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
         echo "Failed to clean up identities.json for $container: $output" | tee -a /var/log/monitor_myst.log
-        echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-        sudo systemctl restart docker
-        echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-        sleep 60
+        if ! restart_docker_service; then
+          echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+          sleep 10
+          continue
+        fi
         handle_docker_restart
         continue
       fi
