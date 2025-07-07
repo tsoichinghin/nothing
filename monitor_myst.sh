@@ -196,9 +196,10 @@ handle_docker_restart() {
   # 為缺失的 container_number 分配 myst_port 並重新啟動
   for num in "${missing_numbers[@]}"; do
     myst_port=$((40001 + num - min_container_number))
+    ovpn_file_path="/root/ovpn/ip${num}.ovpn"
     ovpn_file="ip${num}.ovpn"
     if [ ! -f "$ovpn_file" ]; then
-      echo "OVPN file $ovpn_file not found, skipping container $num" | tee -a /var/log/monitor_myst.log
+      echo "OVPN file $ovpn_file_path not found, skipping container $num" | tee -a /var/log/monitor_myst.log
       continue
     fi
 
@@ -216,7 +217,7 @@ handle_docker_restart() {
     output=$(timeout 300 docker run -d --restart always --network vpn${num} --cpu-period=100000 --cpu-quota=20000 \
       --log-driver json-file --log-opt max-size=10m -p ${myst_port}:4449 \
       --cap-add=NET_ADMIN --device=/dev/net/tun --memory="64m" \
-      -v /root/ovpn:/vpn -e OVPN_FILE="${ovpn_file}" --name vpni${num} tsoichinghin/ovpn:latest 2>&1)
+      -v /root/ovpn:/vpn -e OVPN_FILE=${ovpn_file} --name vpni${num} tsoichinghin/ovpn:latest 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to start vpni${num}: $output" | tee -a /var/log/monitor_myst.log
