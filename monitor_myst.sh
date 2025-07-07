@@ -258,11 +258,51 @@ check_container_status() {
 check_container_logs() {
   local container=$1
   local output
-  output=$(timeout 180 docker logs --tail 10 "$container" 2>&1)
+  output=$(timeout 180 docker logs --tail 20 "$container" 2>&1)
   local exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Failed to get logs for $container: $output" | tee -a /var/log/monitor_myst.log
     if ! check_container_status "$container" "restart"; then
+      return 1
+    fi
+    sleep 60
+  elif echo "$output" | grep -qi "failed to open boltDB: timeout"; then
+    echo "BoltDB timeout detected in $container, removing and restarting..." | tee -a /var/log/monitor_myst.log
+    num=$(echo "$container" | grep -oE '[0-9]+$')
+    # 備份 Volume
+    backup_dir="/root/backup_myst${num}_$(date +%F_%H%M%S)"
+    echo "Backing up Volume for $container to $backup_dir..." | tee -a /var/log/monitor_myst.log
+    cp -r "/var/lib/docker/volumes/myst${num}/_data" "$backup_dir"
+    # 刪除 bolt.db
+    rm "/var/lib/docker/volumes/myst${num}/_data/bolt.db"
+    # 移除並重啟容器
+    remove_container "$container" || return 1
+    remove_container "vpni${num}" || return 1
+    echo "Restarting vpni${num} and myst${num}..." | tee -a /var/log/monitor_myst.log
+    myst_port=$((40001 + num - min_container_number))
+    ovpn_file_path="/root/ovpn/ip${num}.ovpn"
+    ovpn_file="ip${num}.ovpn"
+    if [ ! -f "$ovpn_file_path" ]; then
+      echo "OVPN file $ovpn_file_path not found, skipping $container" | tee -a /var/log/monitor_myst.log
+      return 1
+    fi
+    output=$(timeout 300 docker run -d --restart always --network vpn${num} --cpu-period=100000 --cpu-quota=10000 \
+      --log-driver json-file --log-opt max-size=10m -p ${myst_port}:4449 \
+      --cap-add=NET_ADMIN --device=/dev/net/tun --memory="64m" \
+      -v /root/ovpn:/vpn -e OVPN_FILE="/vpn/ip${num}.ovpn" --name vpni${num} tsoichinghin/ovpn:latest 2>&1)
+    exit_code=$?
+    if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
+      echo "Failed to start vpni${num}: $output" | tee -a /var/log/monitor_myst.log
+      return 1
+    fi
+    output=$(timeout 300 docker run -d --restart always --network container:vpni${num} --cpu-period=100000 \
+      --log-driver json-file --log-opt max-size=10m --memory="64m" \
+      --cpu-quota=10000 --name myst${num} --cap-add NET_ADMIN \
+      -v myst${num}:/var/lib/mysterium-node tsoichinghin/myst:latest \
+      --ui.address=0.0.0.0 --tequilapi.address=0.0.0.0 service --agreed-terms-and-conditions 2>&1)
+    exit_code=$?
+    if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
+      echo "Failed to start myst${num}: $output" | tee -a /var/log/monitor_myst.log
       return 1
     fi
     sleep 60
