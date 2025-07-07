@@ -8,7 +8,6 @@ echo "Initial next payout date: $(date -d @$next_payout_date)" | tee -a /var/log
 # 函數：檢查 Docker 服務狀態
 check_docker_service() {
   echo "Checking Docker service status..." | tee -a /var/log/monitor_myst.log
-  restart_docker_service
   if ! systemctl is-active --quiet docker; then
     echo "Docker service is not active, attempting to start..." | tee -a /var/log/monitor_myst.log
     output=$(timeout 300 sudo systemctl start docker 2>&1)
@@ -281,6 +280,7 @@ first_run=true
 while true; do
   echo "Checking myst containers at $(date)" | tee -a /var/log/monitor_myst.log
   if [ "$first_run" = true ]; then
+    restart_docker_service
     if check_docker_service; then
       echo "Docker service is already running, skipping restart..." | tee -a /var/log/monitor_myst.log
     else
