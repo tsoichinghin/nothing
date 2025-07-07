@@ -196,7 +196,7 @@ handle_docker_restart() {
   # 為缺失的 container_number 分配 myst_port 並重新啟動
   for num in "${missing_numbers[@]}"; do
     myst_port=$((40001 + num - min_container_number))
-    ovpn_file="/root/ovpn/ip${num}.ovpn"
+    ovpn_file="ip${num}.ovpn"
     if [ ! -f "$ovpn_file" ]; then
       echo "OVPN file $ovpn_file not found, skipping container $num" | tee -a /var/log/monitor_myst.log
       continue
