@@ -201,6 +201,8 @@ check_container_logs() {
 }
 
 sudo systemctl restart docker
+echo "Waiting 60 seconds for Docker for first restart..." | tee -a /var/log/monitor_myst.log
+sleep 60
 handle_docker_restart
 
 while true; do
