@@ -218,7 +218,7 @@ handle_docker_restart() {
     output=$(timeout 300 docker run -d --restart always --network container:vpni${num} --cpu-period=100000 \
       --log-driver json-file --log-opt max-size=10m --memory="64m" \
       --cpu-quota=20000 --name myst${num} --cap-add NET_ADMIN \
-      -v myst${num}:/var/lib/mysterium-node tsoichinghost/myst:latest \
+      -v myst${num}:/var/lib/mysterium-node tsoichinghin/myst:latest \
       --ui.address=0.0.0.0 --tequilapi.address=0.0.0.0 service --agreed-terms-and-conditions 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
