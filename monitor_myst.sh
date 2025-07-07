@@ -527,7 +527,8 @@ while true; do
         handle_docker_restart
         continue
       fi
-      echo "Container $container restarted successfully, checking identities again..." | tee -a /var/log/monitor_myst.log
+      echo "Container $container restarted successfully, waiting 60 second and checking identities again..." | tee -a /var/log/monitor_myst.log
+      sleep 60
       output=$(timeout 240 docker exec "$container" curl -s http://localhost:4050/identities -o /tmp/identities.json 2>&1)
       exit_code=$?
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
@@ -783,7 +784,8 @@ while true; do
           handle_docker_restart
           continue
         fi
-        echo "Container $container restarted successfully, checking identities again..." | tee -a /var/log/monitor_myst.log
+        echo "Container $container restarted successfully, waiting 60 second and checking identities again..." | tee -a /var/log/monitor_myst.log
+        sleep 60
         output=$(timeout 240 docker exec "$container" curl -s http://localhost:4050/identities -o /tmp/identities.json 2>&1)
         exit_code=$?
         if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
