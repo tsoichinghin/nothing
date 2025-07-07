@@ -50,6 +50,24 @@ restart_docker_service() {
   return 1
 }
 
+docker_network_recreate() {
+  local container=$1
+  echo "Recreating Docker network for container $container..." | tee -a /var/log/monitor_myst.log
+  rm=$(timeout 180 docker network rm vpn$container 2>/dev/null)
+  if [ $? -ne 0 ]; then
+    echo "Failed to remove network vpn$container: $rm" | tee -a /var/log/monitor_myst.log
+    return 1
+  fi
+  echo "Network vpn$container removed successfully" | tee -a /var/log/monitor_myst.log
+  create=$(timeout 180 docker network create vpn$container 2>/dev/null)
+  if [ $? -ne 0 ]; then
+    echo "Failed to create network vpn$container: $create" | tee -a /var/log/monitor_myst.log
+    return 1
+  fi
+  echo "Network vpn$container created successfully" | tee -a /var/log/monitor_myst.log
+  return 0
+}
+
 # 函數：清理容器元數據（僅刪除元數據目錄）
 clean_container_metadata() {
   local container=$1
@@ -169,6 +187,7 @@ handle_docker_restart() {
   for num in "${numbers[@]}"; do
     clean_container_metadata "myst$num"
     clean_container_metadata "vpni$num"
+    docker_network_recreate $num
   done
 
   # 啟動 Docker 服務
