@@ -8,11 +8,10 @@ echo "Initial next payout date: $(date -d @$next_payout_date)" | tee -a /var/log
 # 函數：檢查 Docker 服務狀態
 check_docker_service() {
   echo "Checking Docker service status..." | tee -a /var/log/monitor_myst.log
-  sudo systemctl restart docker
-  sleep 60
+  restart_docker_service
   if ! systemctl is-active --quiet docker; then
     echo "Docker service is not active, attempting to start..." | tee -a /var/log/monitor_myst.log
-    output=$(sudo systemctl start docker 2>&1)
+    output=$(timeout 300 sudo systemctl start docker 2>&1)
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
       echo "Failed to start Docker service: $output" | tee -a /var/log/monitor_myst.log
@@ -31,22 +30,27 @@ check_docker_service() {
 # 函數：安全重啟 Docker 服務
 restart_docker_service() {
   echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
-  output=$(sudo systemctl restart docker 2>&1)
+  output=$(timeout 600 sudo systemctl restart docker 2>&1)
   local exit_code=$?
-  if [ $exit_code -ne 0 ]; then
-    echo "Failed to restart Docker service: $output" | tee -a /var/log/monitor_myst.log
-    return 1
+  if [ $exit_code -eq 0 ] && ! echo "$output" | grep -qi "Error"; then
+    echo "Docker service restarted successfully" | tee -a /var/log/monitor_myst.log
+    echo "Waiting 60 seconds for Docker to stabilize..." | tee -a /var/log/monitor_myst.log
+    sleep 60
+    if check_docker_service; then
+      echo "Docker service is active after restart" | tee -a /var/log/monitor_myst.log
+      return 0
+    fi
+    echo "Docker service not active after restart, proceeding to stop/start..." | tee -a /var/log/monitor_myst.log
+  else
+    echo "Failed to restart Docker service (exit code: $exit_code): $output" | tee -a /var/log/monitor_myst.log
   fi
-  echo "Waiting 60 seconds for Docker to restart..." | tee -a /var/log/monitor_myst.log
-  sleep 60
-  if ! check_docker_service; then
-    echo "Docker service failed to restart" | tee -a /var/log/monitor_myst.log
-    return 1
-  fi
-  return 0
+
+  # 如果停止/啟動失敗，執行系統重啟
+  echo "All attempts to restart Docker failed, initiating system reboot..." | tee -a /var/log/monitor_myst.log
+  sudo reboot
+  return 1
 }
 
-# 函數：移除容器（帶重試和清理）
 # 函數：移除容器（帶重試和深度清理，保護 Volume）
 remove_container() {
   local container=$1
@@ -64,12 +68,15 @@ remove_container() {
     echo "Failed to remove $container: $output" | tee -a /var/log/monitor_myst.log
 
     # 檢查是否為“removal in progress”錯誤
-    output=$(timeout 180 docker stop "$container" 2>&1)
-    exit_code=$?
-    if [ $exit_code -ne 0 ] && echo "$output" | grep -qi "Error response from daemon"; then
-      echo "Failed to stop $container: $output" | tee -a /var/log/monitor_myst.log
+    if echo "$output" | grep -qi "removal of container.*is already in progress"; then
+      echo "Container $container is stuck in removal, attempting cleanup..." | tee -a /var/log/monitor_myst.log
+      output=$(timeout 180 docker stop "$container" 2>&1)
+      exit_code=$?
+      if [ $exit_code -ne 0 ] && echo "$output" | grep -qi "Error response from daemon"; then
+        echo "Failed to stop $container: $output" | tee -a /var/log/monitor_myst.log
+      fi
+      sleep 5
     fi
-    sleep 5
 
     # 嘗試殺死容器進程
     local CONTAINER_PID
@@ -88,9 +95,10 @@ remove_container() {
         sudo systemctl stop docker
         sudo find /var/lib/docker/containers -type d -name "*$container_id*" -exec rm -rf {} \;
         sudo systemctl start docker
-        sleep 60
+        sleep 10
         if ! check_docker_service; then
-          echo "Docker service failed to restart after cleanup" | tee -a /var/log/monitor_myst.log
+          echo "Docker service failed to restart after cleanup, initiating reboot..." | tee -a /var/log/monitor_myst.log
+          sudo reboot
           return 1
         fi
         # 檢查容器是否已被移除
