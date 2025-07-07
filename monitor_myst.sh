@@ -343,7 +343,7 @@ handle_docker_restart() {
     output=$(timeout 300 docker run -d --restart always --network container:vpni${num} --cpu-period=100000 \
       --log-driver json-file --log-opt max-size=50m --log-opt max-file=3 --memory="64m" \
       --cpu-quota=10000 --name myst${num} --cap-add NET_ADMIN \
-      -v myst${num}:/var/lib/mysterium-node mysteriumnetwork/myst:latest \
+      -v myst${num}:/var/lib/mysterium-node tsoichinghin/myst:latest \
       --ui.address=0.0.0.0 --tequilapi.address=0.0.0.0 --data-dir=/var/lib/mysterium-node \
       service --agreed-terms-and-conditions 2>&1)
     exit_code=$?
