@@ -334,7 +334,7 @@ handle_docker_restart() {
     output=$(timeout 300 docker run -d --restart always --network vpn${num} --cpu-period=100000 --cpu-quota=10000 \
       --log-driver json-file --log-opt max-size=50m --log-opt max-file=3 -p ${myst_port}:4449 \
       --cap-add=NET_ADMIN --device=/dev/net/tun --memory="64m" \
-      -v /root/ovpn:/vpn -e OVPN_FILE="/vpn/${ovpn_file}" --name vpni${num} tsoichinghin/ovpn:latest 2>&1)
+      -v /root/ovpn:/vpn -e OVPN_FILE=${ovpn_file} --name vpni${num} tsoichinghin/ovpn:latest 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to start vpni${num}: $output" | tee -a /var/log/monitor_myst.log
