@@ -183,12 +183,6 @@ handle_docker_restart() {
   done
   echo "Found containers with numbers: ${numbers[*]}" | tee -a /var/log/monitor_myst.log
 
-  # 如果沒有找到異常容器，退出函數
-  if [ ${#numbers[@]} -eq 0 ]; then
-    echo "No containers in exited or restarting state, exiting handle_docker_restart" | tee -a /var/log/monitor_myst.log
-    return 0
-  fi
-
   # 移除所有 myst 和 vpni 容器並清理元數據
   for num in "${numbers[@]}"; do
     # 嘗試移除容器
