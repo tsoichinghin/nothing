@@ -68,24 +68,29 @@ docker_network_recreate() {
   return 0
 }
 
-# 函數：清理容器元數據（僅刪除元數據目錄）
+# 函數：清理容器元數據（包括元數據目錄和 myst.db）
 clean_container_metadata() {
   local container=$1
-  local container_id
-  container_id=$(timeout 180 docker ps -a --filter "name=$container" --format "{{.ID}}" 2>/dev/null)
-  if [ -n "$container_id" ]; then
-    echo "Cleaning up container metadata for $container (ID: $container_id)..." | tee -a /var/log/monitor_myst.log
-    sudo find /var/lib/docker/containers -type d -name "$container" -exec rm -rf {} \; 2>/dev/null
-    if [ $? -eq 0 ]; then
-      echo "Successfully cleaned up metadata for $container" | tee -a /var/log/monitor_myst.log
-      return 0
-    else
-      echo "Failed to clean up metadata for $container" | tee -a /var/log/monitor_myst.log
+  local volume_path="/var/lib/docker/volumes/${container}/_data/mainnet/db/myst.db"
+  if [ -f "$volume_path" ]; then
+    # 備份 myst.db
+    local backup_dir="/root/backup_myst/backup_myst${num}_$(date +%F_%H%M%S)"
+    echo "Backing up myst.db for $container to $backup_dir..." | tee -a /var/log/monitor_myst.log
+    mkdir -p "$backup_dir"
+    cp -r "/var/lib/docker/volumes/${container}/_data" "$backup_dir" 2>&1 | tee -a /var/log/monitor_myst.log
+    if [ $? -ne 0 ]; then
+      echo "Failed to backup myst.db for $container" | tee -a /var/log/monitor_myst.log
+      return 1
+    fi
+    # 刪除 myst.db
+    echo "Removing myst.db for $container..." | tee -a /var/log/monitor_myst.log
+    rm -f "$volume_path" 2>&1 | tee -a /var/log/monitor_myst.log
+    if [ $? -ne 0 ]; then
+      echo "Failed to remove myst.db for $container" | tee -a /var/log/monitor_myst.log
       return 1
     fi
   else
-    echo "No container ID found for $container, skipping metadata cleanup" | tee -a /var/log/monitor_myst.log
-    return 0
+    echo "No myst.db file found for $container at $volume_path" | tee -a /var/log/monitor_myst.log
   fi
 }
 
@@ -186,7 +191,6 @@ handle_docker_restart() {
   # 清理所有 myst 和 vpni 容器的元數據
   for num in "${numbers[@]}"; do
     clean_container_metadata "myst$num"
-    clean_container_metadata "vpni$num"
   done
 
   # 啟動 Docker 服務
