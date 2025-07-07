@@ -164,7 +164,13 @@ handle_docker_restart() {
       echo "Exiting handle_docker_restart due to Docker service failure" | tee -a /var/log/monitor_myst.log
       return 1
     fi
-    return 1
+    # 重試獲取容器列表
+    output=$(timeout 300 docker ps -a --filter "name=myst|vpni" --filter "status=exited" --filter "status=restarting" --format "{{.Names}}" 2>&1)
+    exit_code=$?
+    if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
+      echo "Error getting container list after Docker restart: $output" | tee -a /var/log/monitor_myst.log
+      return 1
+    fi
   fi
 
   # 從容器名稱中提取數字列表
@@ -177,44 +183,74 @@ handle_docker_restart() {
   done
   echo "Found containers with numbers: ${numbers[*]}" | tee -a /var/log/monitor_myst.log
 
-  # 停止 Docker 服務
-  echo "Stopping Docker service for metadata cleanup..." | tee -a /var/log/monitor_myst.log
-  output=$(timeout 600 sudo systemctl stop docker 2>&1)
-  exit_code=$?
-  if [ $exit_code -ne 0 ]; then
-    echo "Failed to stop Docker service or timed out: $output" | tee -a /var/log/monitor_myst.log
-    echo "Systemctl stop docker timed out, initiating reboot..." | tee -a /var/log/monitor_myst.log
-    sudo reboot
-    return 1
+  # 如果沒有找到異常容器，退出函數
+  if [ ${#numbers[@]} -eq 0 ]; then
+    echo "No containers in exited or restarting state, exiting handle_docker_restart" | tee -a /var/log/monitor_myst.log
+    return 0
   fi
 
-  # 清理所有 myst 和 vpni 容器的元數據
+  # 移除所有 myst 和 vpni 容器並清理元數據
   for num in "${numbers[@]}"; do
+    # 嘗試移除容器
+    output=$(timeout 300 docker rm -f "myst$num" 2>&1)
+    exit_code=$?
+    if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
+      echo "Failed to remove myst$num: $output" | tee -a /var/log/monitor_myst.log
+      # 重啟 Docker 服務並重試
+      echo "Restarting Docker service due to removal failure..." | tee -a /var/log/monitor_myst.log
+      output=$(timeout 600 sudo systemctl restart docker 2>&1)
+      exit_code=$?
+      if [ $exit_code -ne 0 ]; then
+        echo "Failed to restart Docker service or timed out: $output" | tee -a /var/log/monitor_myst.log
+        echo "Systemctl restart docker timed out, initiating reboot..." | tee -a /var/log/monitor_myst.log
+        sudo reboot
+        return 1
+      fi
+      sleep 10
+      if ! check_docker_service; then
+        echo "Docker service failed to restart, initiating reboot..." | tee -a /var/log/monitor_myst.log
+        sudo reboot
+        return 1
+      fi
+      # 重試移除
+      output=$(timeout 300 docker rm -f "myst$num" 2>&1)
+      exit_code=$?
+      if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
+        echo "Failed to remove myst$num after Docker restart: $output" | tee -a /var/log/monitor_myst.log
+        continue
+      fi
+    fi
+    output=$(timeout 300 docker rm -f "vpni$num" 2>&1)
+    exit_code=$?
+    if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
+      echo "Failed to remove vpni$num: $output" | tee -a /var/log/monitor_myst.log
+      # 重啟 Docker 服務並重試
+      echo "Restarting Docker service due to removal failure..." | tee -a /var/log/monitor_myst.log
+      output=$(timeout 600 sudo systemctl restart docker 2>&1)
+      exit_code=$?
+      if [ $exit_code -ne 0 ]; then
+        echo "Failed to restart Docker service or timed out: $output" | tee -a /var/log/monitor_myst.log
+        echo "Systemctl restart docker timed out, initiating reboot..." | tee -a /var/log/monitor_myst.log
+        sudo reboot
+        return 1
+      fi
+      sleep 10
+      if ! check_docker_service; then
+        echo "Docker service failed to restart, initiating reboot..." | tee -a /var/log/monitor_myst.log
+        sudo reboot
+        return 1
+      fi
+      # 重試移除
+      output=$(timeout 300 docker rm -f "vpni$num" 2>&1)
+      exit_code=$?
+      if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
+        echo "Failed to remove vpni$num after Docker restart: $output" | tee -a /var/log/monitor_myst.log
+        continue
+      fi
+    fi
+    # 移除成功後清理元數據和 myst.db
     clean_container_metadata "myst$num"
-  done
-
-  # 啟動 Docker 服務
-  echo "Starting Docker service after metadata cleanup..." | tee -a /var/log/monitor_myst.log
-  output=$(timeout 600 sudo systemctl start docker 2>&1)
-  exit_code=$?
-  if [ $exit_code -ne 0 ]; then
-    echo "Failed to start Docker service or timed out: $output" | tee -a /var/log/monitor_myst.log
-    echo "Systemctl start docker timed out, initiating reboot..." | tee -a /var/log/monitor_myst.log
-    sudo reboot
-    return 1
-  fi
-  sleep 10
-  if ! check_docker_service; then
-    echo "Docker service failed to restart after metadata cleanup, initiating reboot..." | tee -a /var/log/monitor_myst.log
-    sudo reboot
-    return 1
-  fi
-
-  # 移除所有 myst 和 vpni 容器
-  for num in "${numbers[@]}"; do
-    remove_container "myst$num"
-    remove_container "vpni$num"
-    docker_network_recreate $num
+    docker_network_recreate "$num"
   done
 
   # 再次檢查是否有處於 exited 或 restarting 狀態的容器
@@ -234,8 +270,19 @@ handle_docker_restart() {
   if [ ${#residual_numbers[@]} -gt 0 ]; then
     echo "Found residual containers in exited or restarting state: ${residual_numbers[*]}" | tee -a /var/log/monitor_myst.log
     for num in "${residual_numbers[@]}"; do
-      remove_container "myst$num"
-      remove_container "vpni$num"
+      output=$(timeout 300 docker rm -f "myst$num" 2>&1)
+      exit_code=$?
+      if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
+        echo "Failed to remove residual myst$num: $output" | tee -a /var/log/monitor_myst.log
+        continue
+      fi
+      output=$(timeout 300 docker rm -f "vpni$num" 2>&1)
+      exit_code=$?
+      if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
+        echo "Failed to remove residual vpni$num: $output" | tee -a /var/log/monitor_myst.log
+        continue
+      fi
+      clean_container_metadata "myst$num"
       docker_network_recreate "$num"
     done
   fi
@@ -273,7 +320,7 @@ handle_docker_restart() {
   done
   echo "Missing container numbers: ${missing_numbers[*]}" | tee -a /var/log/monitor_myst.log
 
-  # 為需要啟動的容器創建 vpni 和 myst
+  # 為缺失的容器創建 vpni 和 myst
   for num in "${missing_numbers[@]}"; do
     local myst_port=$((40001 + num - min_container_number))
     local ovpn_file_path="/root/ovpn/ip${num}.ovpn"
@@ -285,18 +332,18 @@ handle_docker_restart() {
 
     echo "Starting vpni$num and myst$num with myst_port $myst_port..." | tee -a /var/log/monitor_myst.log
     output=$(timeout 300 docker run -d --restart always --network vpn${num} --cpu-period=100000 --cpu-quota=10000 \
-      --log-driver json-file --log-opt max-size=10m -p ${myst_port}:4449 \
+      --log-driver json-file --log-opt max-size=50m --log-opt max-file=3 -p ${myst_port}:4449 \
       --cap-add=NET_ADMIN --device=/dev/net/tun --memory="64m" \
-      -v /root/ovpn:/vpn -e OVPN_FILE=${ovpn_file} --name vpni${num} tsoichinghin/ovpn:latest 2>&1)
+      -v /root/ovpn:/vpn -e OVPN_FILE="/vpn/${ovpn_file}" --name vpni${num} tsoichinghin/ovpn:latest 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to start vpni${num}: $output" | tee -a /var/log/monitor_myst.log
       continue
     fi
     output=$(timeout 300 docker run -d --restart always --network container:vpni${num} --cpu-period=100000 \
-      --log-driver json-file --log-opt max-size=10m --memory="64m" \
+      --log-driver json-file --log-opt max-size=50m --log-opt max-file=3 --memory="64m" \
       --cpu-quota=10000 --name myst${num} --cap-add NET_ADMIN \
-      -v myst${num}:/var/lib/mysterium-node tsoichinghin/myst:latest \
+      -v myst${num}:/var/lib/mysterium-node mysteriumnetwork/myst:latest \
       --ui.address=0.0.0.0 --tequilapi.address=0.0.0.0 --data-dir=/var/lib/mysterium-node \
       service --agreed-terms-and-conditions 2>&1)
     exit_code=$?
