@@ -31,6 +31,31 @@ check_docker_service() {
   return 0
 }
 
+restart_myst() {
+  local container=$1
+  echo "Restarting container $container..." | tee -a /var/log/monitor_myst.log
+  output=$(timeout 300 docker rm -f "$container" 2>&1)
+  local exit_code=$?
+  if [ $exit_code -eq 0 ] && ! echo "$output" | grep -qi "Error response from daemon"; then
+    echo "Container $container remove successfully" | tee -a /var/log/monitor_myst.log
+    output=$(timeout 300 docker run -d --restart always --network container:vpni${container#myst} --cpu-period=100000 \
+      --log-driver json-file --log-opt max-size=50m --log-opt max-file=3 --memory="64m" \
+      --cpu-quota=10000 --name ${container} --cap-add NET_ADMIN \
+      -v ${container}:/var/lib/mysterium-node tsoichinghin/myst:latest \
+      --ui.address=0.0.0.0 --tequilapi.address=0.0.0.0 --data-dir=/var/lib/mysterium-node \
+      service --agreed-terms-and-conditions 2>&1)
+    exit_code=$?
+    if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
+      echo "Failed to start myst container $container: $output" | tee -a /var/log/monitor_myst.log
+      return 1
+    fi
+    return 0
+  else
+    echo "Failed to remove container $container: $output" | tee -a /var/log/monitor_myst.log
+    return 1
+  fi
+}
+
 # 函數：安全重啟 Docker 服務
 restart_docker_service() {
   echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
@@ -56,13 +81,13 @@ restart_docker_service() {
 docker_network_recreate() {
   local container=$1
   echo "Recreating Docker network for container $container..." | tee -a /var/log/monitor_myst.log
-  rm=$(timeout 180 docker network rm vpn$container 2>/dev/null)
+  rm=$(timeout 240 docker network rm vpn$container 2>/dev/null)
   if [ $? -ne 0 ]; then
     echo "Failed to remove network vpn$container: $rm" | tee -a /var/log/monitor_myst.log
     return 1
   fi
   echo "Network vpn$container removed successfully" | tee -a /var/log/monitor_myst.log
-  create=$(timeout 180 docker network create vpn$container 2>/dev/null)
+  create=$(timeout 240 docker network create vpn$container 2>/dev/null)
   if [ $? -ne 0 ]; then
     echo "Failed to create network vpn$container: $create" | tee -a /var/log/monitor_myst.log
     return 1
@@ -116,7 +141,7 @@ remove_container() {
     # 檢查是否為“removal in progress”錯誤
     if echo "$output" | grep -qi "removal of container.*is already in progress"; then
       echo "Container $container is stuck in removal, attempting cleanup..." | tee -a /var/log/monitor_myst.log
-      output=$(timeout 180 docker stop "$container" 2>&1)
+      output=$(timeout 240 docker stop "$container" 2>&1)
       exit_code=$?
       if [ $exit_code -ne 0 ] && echo "$output" | grep -qi "Error response from daemon"; then
         echo "Failed to stop $container: $output" | tee -a /var/log/monitor_myst.log
@@ -355,7 +380,7 @@ check_container_status() {
   local container=$1
   local cmd=$2
   local output
-  output=$(timeout 180 docker $cmd "$container" 2>&1)
+  output=$(timeout 240 docker $cmd "$container" 2>&1)
   local exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Error executing docker $cmd $container: $output" | tee -a /var/log/monitor_myst.log
@@ -373,14 +398,14 @@ check_container_status() {
 check_container_logs() {
   local container=$1
   local output
-  output=$(timeout 180 docker logs --tail 10 "$container" 2>&1)
+  output=$(timeout 240 docker logs --tail 10 "$container" 2>&1)
   local exit_code=$?
   if [ $exit_code -eq 124 ]; then
     echo "Timeout occurred when getting logs for $container, rebooting system..." | tee -a /var/log/monitor_myst.log
     restart_docker_service
     sleep 60
     handle_docker_restart
-    output=$(timeout 180 docker logs --tail 10 "$container" 2>&1)
+    output=$(timeout 240 docker logs --tail 10 "$container" 2>&1)
     exit_code=$?
     if [ $exit_code -eq 124 ]; then
       echo "Second timeout occurred for $container logs, rebooting system now..." | tee -a /var/log/monitor_myst.log
@@ -429,7 +454,7 @@ while true; do
     echo "First run completed, proceeding with monitoring..." | tee -a /var/log/monitor_myst.log
     first_run=false
   fi
-  output=$(timeout 180 docker ps --filter "name=myst" --format "{{.Names}}" 2>&1)
+  output=$(timeout 240 docker ps --filter "name=myst" --format "{{.Names}}" 2>&1)
   exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Error getting running myst containers: $output" | tee -a /var/log/monitor_myst.log
@@ -444,7 +469,7 @@ while true; do
   containers=$output
   if [ -z "$containers" ]; then
     echo "No running myst containers found. Checking stopped containers..." | tee -a /var/log/monitor_myst.log
-    output=$(timeout 180 docker ps -a --filter "name=myst" --filter "status=exited" --format "{{.Names}}" 2>&1)
+    output=$(timeout 240 docker ps -a --filter "name=myst" --filter "status=exited" --format "{{.Names}}" 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Error getting stopped myst containers: $output" | tee -a /var/log/monitor_myst.log
@@ -464,7 +489,7 @@ while true; do
       fi
     done
     sleep 10
-    output=$(timeout 180 docker ps --filter "name=myst" --format "{{.Names}}" 2>&1)
+    output=$(timeout 240 docker ps --filter "name=myst" --format "{{.Names}}" 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Error getting running myst containers after starting: $output" | tee -a /var/log/monitor_myst.log
@@ -488,19 +513,36 @@ while true; do
     if ! check_container_logs "$container"; then
       continue
     fi
-    output=$(timeout 180 docker exec "$container" curl -s http://localhost:4050/identities -o /tmp/identities.json 2>&1)
+    output=$(timeout 240 docker exec "$container" curl -s http://localhost:4050/identities -o /tmp/identities.json 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to get identities for $container: $output" | tee -a /var/log/monitor_myst.log
-      if ! restart_docker_service; then
-        echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
-        sleep 10
+      if ! restart_myst $container; then
+        echo "Failed to restart myst container $container, checking Docker service..." | tee -a /var/log/monitor_myst.log
+        if ! restart_docker_service; then
+          echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+          sleep 10
+          continue
+        fi
+        handle_docker_restart
         continue
       fi
-      handle_docker_restart
-      continue
+      echo "Container $container restarted successfully, checking identities again..." | tee -a /var/log/monitor_myst.log
+      output=$(timeout 240 docker exec "$container" curl -s http://localhost:4050/identities -o /tmp/identities.json 2>&1)
+      exit_code=$?
+      if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
+        echo "Failed to get identities for $container after restart: $output" | tee -a /var/log/monitor_myst.log
+        if ! restart_docker_service; then
+          echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+          sleep 10
+          continue
+        fi
+        handle_docker_restart
+        continue
+      fi
+      echo "Identities fetched successfully for $container after restart" | tee -a /var/log/monitor_myst.log
     fi
-    output=$(timeout 180 docker exec "$container" jq -r '.identities[0].id' /tmp/identities.json 2>&1)
+    output=$(timeout 240 docker exec "$container" jq -r '.identities[0].id' /tmp/identities.json 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to parse provider_id for $container: $output" | tee -a /var/log/monitor_myst.log
@@ -515,7 +557,7 @@ while true; do
     provider_id=$(echo "$output" | tr -d '\r')
     if [ -z "$provider_id" ] || [ "$provider_id" = "null" ]; then
       echo "Failed to get provider_id for $container, raw output:" | tee -a /var/log/monitor_myst.log
-      output=$(timeout 180 docker exec "$container" cat /tmp/identities.json 2>&1)
+      output=$(timeout 240 docker exec "$container" cat /tmp/identities.json 2>&1)
       exit_code=$?
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
         echo "Failed to cat identities.json for $container: $output" | tee -a /var/log/monitor_myst.log
@@ -545,7 +587,7 @@ while true; do
         echo "$output" | tee -a /var/log/monitor_myst.log
       fi
       echo "Container status:" | tee -a /var/log/monitor_myst.log
-      output=$(timeout 180 docker ps -a --filter "name=$container" 2>&1)
+      output=$(timeout 240 docker ps -a --filter "name=$container" 2>&1)
       exit_code=$?
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
         echo "Failed to get container status for $container: $output" | tee -a /var/log/monitor_myst.log
@@ -565,7 +607,7 @@ while true; do
     missing_services=""
     scraping_count=0
     quic_scraping_count=0
-    output=$(timeout 180 docker exec "$container" curl -s http://localhost:4050/services -o /tmp/services.json 2>&1)
+    output=$(timeout 240 docker exec "$container" curl -s http://localhost:4050/services -o /tmp/services.json 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to get services for $container: $output" | tee -a /var/log/monitor_myst.log
@@ -577,7 +619,7 @@ while true; do
       handle_docker_restart
       continue
     fi
-    output=$(timeout 180 docker exec "$container" jq -r '.[].type' /tmp/services.json 2>&1)
+    output=$(timeout 240 docker exec "$container" jq -r '.[].type' /tmp/services.json 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to parse services for $container: $output" | tee -a /var/log/monitor_myst.log
@@ -595,7 +637,7 @@ while true; do
     if [ "$scraping_count" -ne 1 ] || [ "$quic_scraping_count" -ne 1 ]; then
       while IFS= read -r line; do
         if echo "$line" | grep -qi "^scraping$\|^quic_scraping$"; then
-          output=$(timeout 180 docker exec "$container" jq -r ".[] | select(.type == \"$line\") | .id" /tmp/services.json 2>&1)
+          output=$(timeout 240 docker exec "$container" jq -r ".[] | select(.type == \"$line\") | .id" /tmp/services.json 2>&1)
           exit_code=$?
           if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
             echo "Failed to parse service ID for $line in $container: $output" | tee -a /var/log/monitor_myst.log
@@ -610,7 +652,7 @@ while true; do
           service_id=$output
           if [ -n "$service_id" ]; then
             echo "Stopping service ID $service_id in $container ($line)" | tee -a /var/log/monitor_myst.log
-            output=$(timeout 180 docker exec "$container" curl -s -X DELETE http://localhost:4050/services/$service_id 2>&1)
+            output=$(timeout 240 docker exec "$container" curl -s -X DELETE http://localhost:4050/services/$service_id 2>&1)
             exit_code=$?
             if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
               echo "Failed to stop service $service_id in $container: $output" | tee -a /var/log/monitor_myst.log
@@ -628,7 +670,7 @@ while true; do
       done <<< "$service_list"
       if [ "$scraping_count" -ne 1 ]; then
         echo "Starting service scraping in $container..." | tee -a /var/log/monitor_myst.log
-        output=$(timeout 180 docker exec "$container" curl -X POST http://localhost:4050/services -H "Content-Type: application/json" -d "{\"provider_id\": \"$provider_id\", \"type\": \"scraping\"}" -o /tmp/response_start_scraping.json 2>&1)
+        output=$(timeout 240 docker exec "$container" curl -X POST http://localhost:4050/services -H "Content-Type: application/json" -d "{\"provider_id\": \"$provider_id\", \"type\": \"scraping\"}" -o /tmp/response_start_scraping.json 2>&1)
         exit_code=$?
         if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
           echo "Failed to start scraping in $container with curl: $output" | tee -a /var/log/monitor_myst.log
@@ -650,7 +692,7 @@ while true; do
       fi
       if [ "$quic_scraping_count" -ne 1 ]; then
         echo "Starting service quic_scraping in $container..." | tee -a /var/log/monitor_myst.log
-        output=$(timeout 180 docker exec "$container" curl -X POST http://localhost:4050/services -H "Content-Type: application/json" -d "{\"provider_id\": \"$provider_id\", \"type\": \"quic_scraping\"}" -o /tmp/response_start_quic_scraping.json 2>&1)
+        output=$(timeout 240 docker exec "$container" curl -X POST http://localhost:4050/services -H "Content-Type: application/json" -d "{\"provider_id\": \"$provider_id\", \"type\": \"quic_scraping\"}" -o /tmp/response_start_quic_scraping.json 2>&1)
         exit_code=$?
         if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
           echo "Failed to start quic_scraping in $container with curl: $output" | tee -a /var/log/monitor_myst.log
@@ -681,7 +723,7 @@ while true; do
     for service in $missing_services; do
       if [ "$service" != "scraping" ] && [ "$service" != "quic_scraping" ]; then
         echo "Starting service $service in $container..." | tee -a /var/log/monitor_myst.log
-        output=$(timeout 180 docker exec "$container" curl -X POST http://localhost:4050/services -H "Content-Type: application/json" -d "{\"provider_id\": \"$provider_id\", \"type\": \"$service\"}" -o /tmp/response_start_${service}.json 2>&1)
+        output=$(timeout 240 docker exec "$container" curl -X POST http://localhost:4050/services -H "Content-Type: application/json" -d "{\"provider_id\": \"$provider_id\", \"type\": \"$service\"}" -o /tmp/response_start_${service}.json 2>&1)
         exit_code=$?
         if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
           echo "Failed to start $service in $container with curl: $output" | tee -a /var/log/monitor_myst.log
@@ -703,7 +745,7 @@ while true; do
       fi
     done
     echo "Service check and restart completed for $container" | tee -a /var/log/monitor_myst.log
-    output=$(timeout 180 docker exec "$container" rm -f /tmp/identities.json /tmp/services.json /tmp/response_start_*.json 2>&1)
+    output=$(timeout 240 docker exec "$container" rm -f /tmp/identities.json /tmp/services.json /tmp/response_start_*.json 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to clean up files for $container: $output" | tee -a /var/log/monitor_myst.log
@@ -727,19 +769,36 @@ while true; do
     echo "Payout time reached, processing withdrawals for all containers..." | tee -a /var/log/monitor_myst.log
     for container in $containers; do
       echo "Processing withdrawal for container: $container" | tee -a /var/log/monitor_myst.log
-      output=$(timeout 180 docker exec "$container" curl -s http://localhost:4050/identities -o /tmp/identities.json 2>&1)
+      output=$(timeout 240 docker exec "$container" curl -s http://localhost:4050/identities -o /tmp/identities.json 2>&1)
       exit_code=$?
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
         echo "Failed to get identities for $container: $output" | tee -a /var/log/monitor_myst.log
-        if ! restart_docker_service; then
-          echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
-          sleep 10
+        if ! restart_myst $container; then
+          echo "Failed to restart myst container $container, checking Docker service..." | tee -a /var/log/monitor_myst.log
+          if ! restart_docker_service; then
+            echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+            sleep 10
+            continue
+          fi
+          handle_docker_restart
           continue
         fi
-        handle_docker_restart
-        continue
+        echo "Container $container restarted successfully, checking identities again..." | tee -a /var/log/monitor_myst.log
+        output=$(timeout 240 docker exec "$container" curl -s http://localhost:4050/identities -o /tmp/identities.json 2>&1)
+        exit_code=$?
+        if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
+          echo "Failed to get identities for $container after restart: $output" | tee -a /var/log/monitor_myst.log
+          if ! restart_docker_service; then
+            echo "Exiting loop due to Docker service failure" | tee -a /var/log/monitor_myst.log
+            sleep 10
+            continue
+          fi
+          handle_docker_restart
+          continue
+        fi
+        echo "Identities fetched successfully for $container after restart" | tee -a /var/log/monitor_myst.log
       fi
-      output=$(timeout 180 docker exec "$container" jq -r '.identities[0].id' /tmp/identities.json 2>&1)
+      output=$(timeout 240 docker exec "$container" jq -r '.identities[0].id' /tmp/identities.json 2>&1)
       exit_code=$?
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
         echo "Failed to parse provider_id for $container: $output" | tee -a /var/log/monitor_myst.log
@@ -754,7 +813,7 @@ while true; do
       provider_id=$(echo "$output" | tr -d '\r')
       if [ -z "$provider_id" ] || [ "$provider_id" = "null" ]; then
         echo "Failed to get provider_id for $container, raw output:" | tee -a /var/log/monitor_myst.log
-        output=$(timeout 180 docker exec "$container" cat /tmp/identities.json 2>&1)
+        output=$(timeout 240 docker exec "$container" cat /tmp/identities.json 2>&1)
         exit_code=$?
         if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
           echo "Failed to cat identities.json for $container: $output" | tee -a /var/log/monitor_myst.log
@@ -784,7 +843,7 @@ while true; do
           echo "$output" | tee -a /var/log/monitor_myst.log
         fi
         echo "Container status:" | tee -a /var/log/monitor_myst.log
-        output=$(timeout 180 docker ps -a --filter "name=$container" 2>&1)
+        output=$(timeout 240 docker ps -a --filter "name=$container" 2>&1)
         exit_code=$?
         if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
           echo "Failed to get container status for $container: $output" | tee -a /var/log/monitor_myst.log
@@ -815,7 +874,7 @@ while true; do
       else
         echo "Withdrawal attempted for $container: $output" | tee -a /var/log/monitor_myst.log
       fi
-      output=$(timeout 180 docker exec "$container" rm -f /tmp/identities.json 2>&1)
+      output=$(timeout 240 docker exec "$container" rm -f /tmp/identities.json 2>&1)
       exit_code=$?
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
         echo "Failed to clean up identities.json for $container: $output" | tee -a /var/log/monitor_myst.log
@@ -833,6 +892,6 @@ while true; do
     echo "$next_payout_date" > /root/next_payout_date.txt
     echo "Next payout date updated: $(date -d @$next_payout_date)" | tee -a /var/log/monitor_myst.log
   fi
-  echo "Sleeping for 3 hours..." | tee -a /var/log/monitor_myst.log
-  sleep 10800
+  echo "Sleeping for 6 hours..." | tee -a /var/log/monitor_myst.log
+  sleep 21600
 done
