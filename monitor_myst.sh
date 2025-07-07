@@ -198,7 +198,7 @@ handle_docker_restart() {
     myst_port=$((40001 + num - min_container_number))
     ovpn_file_path="/root/ovpn/ip${num}.ovpn"
     ovpn_file="ip${num}.ovpn"
-    if [ ! -f "$ovpn_file" ]; then
+    if [ ! -f "$ovpn_file_path" ]; then
       echo "OVPN file $ovpn_file_path not found, skipping container $num" | tee -a /var/log/monitor_myst.log
       continue
     fi
