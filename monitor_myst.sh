@@ -200,13 +200,17 @@ check_container_logs() {
   return 0
 }
 
-sudo systemctl restart docker
-echo "Waiting 60 seconds for Docker for first restart..." | tee -a /var/log/monitor_myst.log
-sleep 60
-handle_docker_restart
+first_run=true
 
 while true; do
   echo "Checking myst containers at $(date)" | tee -a /var/log/monitor_myst.log
+  if [ "$first_run" = true ]; then
+    sudo systemctl restart docker
+    echo "Waiting 60 seconds for Docker for first restart..." | tee -a /var/log/monitor_myst.log
+    sleep 60
+    handle_docker_restart
+    first_run=false
+  fi
   output=$(timeout 180 docker ps --filter "name=myst" --format "{{.Names}}" 2>&1)
   exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
