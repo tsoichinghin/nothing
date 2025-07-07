@@ -331,6 +331,19 @@ check_container_logs() {
   local output
   output=$(timeout 180 docker logs --tail 10 "$container" 2>&1)
   local exit_code=$?
+  if [ $exit_code -eq 124 ]; then
+    echo "Timeout occurred when getting logs for $container, rebooting system..." | tee -a /var/log/monitor_myst.log
+    restart_docker_service
+    sleep 60
+    handle_docker_restart
+    output=$(timeout 180 docker logs --tail 10 "$container" 2>&1)
+    exit_code=$?
+    if [ $exit_code -eq 124 ]; then
+      echo "Second timeout occurred for $container logs, rebooting system now..." | tee -a /var/log/monitor_myst.log
+      sudo reboot
+      return 1
+    fi
+  fi
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Failed to get logs for $container: $output" | tee -a /var/log/monitor_myst.log
     if ! check_container_status "$container" "restart"; then
