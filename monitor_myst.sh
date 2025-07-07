@@ -217,6 +217,29 @@ handle_docker_restart() {
     docker_network_recreate $num
   done
 
+  # 再次檢查是否有處於 exited 或 restarting 狀態的容器
+  output=$(timeout 300 docker ps -a --filter "name=myst|vpni" --filter "status=exited" --filter "status=restarting" --format "{{.Names}}" 2>&1)
+  exit_code=$?
+  if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
+    echo "Error getting container list for second check: $output" | tee -a /var/log/monitor_myst.log
+    return 1
+  fi
+  local residual_numbers=()
+  for c in $output; do
+    num=$(echo "$c" | grep -oE '[0-9]+$')
+    if [ -n "$num" ] && ! [[ " ${residual_numbers[*]} " =~ " $num " ]]; then
+      residual_numbers+=("$num")
+    fi
+  done
+  if [ ${#residual_numbers[@]} -gt 0 ]; then
+    echo "Found residual containers in exited or restarting state: ${residual_numbers[*]}" | tee -a /var/log/monitor_myst.log
+    for num in "${residual_numbers[@]}"; do
+      remove_container "myst$num"
+      remove_container "vpni$num"
+      docker_network_recreate "$num"
+    done
+  fi
+
   # 獲取所有 /root/ovpn 中的 container_number
   local all_numbers
   all_numbers=($(ls /root/ovpn/ip*.ovpn 2>/dev/null | grep -oE '[0-9]+' | sort -n))
@@ -230,8 +253,28 @@ handle_docker_restart() {
     return 1
   }
 
-  # 為所有 container_number 重新啟動容器
-  for num in "${numbers[@]}"; do
+  # 獲取當前存在的容器數字
+  local existing_numbers=()
+  output=$(timeout 300 docker ps -a --filter "name=myst" --format "{{.Names}}" 2>/dev/null)
+  for c in $output; do
+    num=$(echo "$c" | grep -oE '[0-9]+$')
+    if [ -n "$num" ] && ! [[ " ${existing_numbers[*]} " =~ " $num " ]]; then
+      existing_numbers+=("$num")
+    fi
+  done
+  echo "Existing myst containers: ${existing_numbers[*]}" | tee -a /var/log/monitor_myst.log
+
+  # 計算缺失的數字（在 all_numbers 中但不在 existing_numbers 中）
+  local missing_numbers=()
+  for num in "${all_numbers[@]}"; do
+    if ! [[ " ${existing_numbers[*]} " =~ " $num " ]]; then
+      missing_numbers+=("$num")
+    fi
+  done
+  echo "Missing container numbers: ${missing_numbers[*]}" | tee -a /var/log/monitor_myst.log
+
+  # 為需要啟動的容器創建 vpni 和 myst
+  for num in "${missing_numbers[@]}"; do
     local myst_port=$((40001 + num - min_container_number))
     local ovpn_file_path="/root/ovpn/ip${num}.ovpn"
     local ovpn_file="ip${num}.ovpn"
