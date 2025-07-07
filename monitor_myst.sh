@@ -208,7 +208,7 @@ handle_docker_restart() {
   }
 
   # 為所有 container_number 重新啟動容器
-  for num in "${all_numbers[@]}"; do
+  for num in "${numbers[@]}"; do
     local myst_port=$((40001 + num - min_container_number))
     local ovpn_file_path="/root/ovpn/ip${num}.ovpn"
     local ovpn_file="ip${num}.ovpn"
