@@ -2,8 +2,11 @@
 
 SERVICES="dvpn scraping quic_scraping wireguard data_transfer"
 current_time=$(date +%s)
-next_payout_date=$((current_time + 30*24*60*60))
-echo "Initial next payout date: $(date -d @$next_payout_date)" | tee -a /var/log/monitor_myst.log
+if [ ! -f /root/next_payout_date.txt ]; then
+  next_payout_date=$((current_time + 30*24*60*60))
+  echo "$next_payout_date" > /root/next_payout_date.txt
+  echo "Initial next payout date: $(date -d @$next_payout_date)" | tee -a /var/log/monitor_myst.log
+fi
 
 # 函數：檢查 Docker 服務狀態
 check_docker_service() {
@@ -714,6 +717,12 @@ while true; do
     fi
   done
   current_time=$(date +%s)
+  if [ -f /root/next_payout_date.txt ]; then
+    next_payout_date=$(cat /root/next_payout_date.txt)
+  else
+    next_payout_date=$((current_time + 30*24*60*60))
+    echo "$next_payout_date" > /root/next_payout_date.txt
+  fi
   if [ "$current_time" -ge "$next_payout_date" ]; then
     echo "Payout time reached, processing withdrawals for all containers..." | tee -a /var/log/monitor_myst.log
     for container in $containers; do
@@ -821,6 +830,7 @@ while true; do
     done
     current_time=$(date +%s)
     next_payout_date=$((current_time + 30*24*60*60))
+    echo "$next_payout_date" > /root/next_payout_date.txt
     echo "Next payout date updated: $(date -d @$next_payout_date)" | tee -a /var/log/monitor_myst.log
   fi
   echo "Sleeping for 3 hours..." | tee -a /var/log/monitor_myst.log
