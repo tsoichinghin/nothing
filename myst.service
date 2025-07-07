@@ -1,7 +1,5 @@
 [Unit]
 Description=Mysterium Node Monitor Service
-After=docker.service
-Requires=docker.service
 
 [Service]
 ExecStart=/root/monitor_myst.sh
