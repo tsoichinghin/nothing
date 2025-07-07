@@ -202,9 +202,9 @@ check_container_logs() {
 
 while true; do
   echo "Checking myst containers at $(date)" | tee -a /var/log/monitor_myst.log
-  local output
+  handle_docker_restart
   output=$(timeout 180 docker ps --filter "name=myst" --format "{{.Names}}" 2>&1)
-  local exit_code=$?
+  exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Error getting running myst containers: $output" | tee -a /var/log/monitor_myst.log
     echo "Restarting Docker service..." | tee -a /var/log/monitor_myst.log
