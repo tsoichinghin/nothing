@@ -57,7 +57,7 @@ clean_container_metadata() {
   container_id=$(timeout 180 docker ps -a --filter "name=$container" --format "{{.ID}}" 2>/dev/null)
   if [ -n "$container_id" ]; then
     echo "Cleaning up container metadata for $container (ID: $container_id)..." | tee -a /var/log/monitor_myst.log
-    sudo find /var/lib/docker/containers -type d -name "*$container_id*" -exec rm -rf {} \; 2>/dev/null
+    sudo find /var/lib/docker/containers -type d -name "$container" -exec rm -rf {} \; 2>/dev/null
     if [ $? -eq 0 ]; then
       echo "Successfully cleaned up metadata for $container" | tee -a /var/log/monitor_myst.log
       return 0
