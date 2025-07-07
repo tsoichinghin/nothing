@@ -47,6 +47,7 @@ restart_docker_service() {
 }
 
 # 函數：移除容器（帶重試和清理）
+# 函數：移除容器（帶重試和深度清理，保護 Volume）
 remove_container() {
   local container=$1
   local max_attempts=3
@@ -80,6 +81,24 @@ remove_container() {
       sleep 5
     else
       echo "Failed to inspect $container or no valid PID: $CONTAINER_PID" | tee -a /var/log/monitor_myst.log
+      # 嘗試手動清理容器元數據（僅限容器數據，不觸及 Volume）
+      container_id=$(timeout 180 docker ps -a --filter "name=$container" --format "{{.ID}}" 2>/dev/null)
+      if [ -n "$container_id" ]; then
+        echo "Attempting to clean up container $container metadata (preserving volumes)..." | tee -a /var/log/monitor_myst.log
+        sudo systemctl stop docker
+        sudo find /var/lib/docker/containers -type d -name "*$container_id*" -exec rm -rf {} \;
+        sudo systemctl start docker
+        sleep 60
+        if ! check_docker_service; then
+          echo "Docker service failed to restart after cleanup" | tee -a /var/log/monitor_myst.log
+          return 1
+        fi
+        # 檢查容器是否已被移除
+        if ! docker ps -a --filter "name=$container" --format "{{.Names}}" | grep -q "$container"; then
+          echo "Successfully cleaned up $container (volume preserved)" | tee -a /var/log/monitor_myst.log
+          return 0
+        fi
+      fi
     fi
 
     # 再次嘗試移除
