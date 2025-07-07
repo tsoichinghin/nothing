@@ -187,7 +187,6 @@ handle_docker_restart() {
   for num in "${numbers[@]}"; do
     clean_container_metadata "myst$num"
     clean_container_metadata "vpni$num"
-    docker_network_recreate $num
   done
 
   # 啟動 Docker 服務
@@ -211,6 +210,7 @@ handle_docker_restart() {
   for num in "${numbers[@]}"; do
     remove_container "myst$num"
     remove_container "vpni$num"
+    docker_network_recreate $num
   done
 
   # 獲取所有 /root/ovpn 中的 container_number
