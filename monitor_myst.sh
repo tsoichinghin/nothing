@@ -380,6 +380,9 @@ while true; do
       fi
     fi
     handle_docker_restart
+    echo "Waiting for 60 seconds before first run..." | tee -a /var/log/monitor_myst.log
+    sleep 60
+    echo "First run completed, proceeding with monitoring..." | tee -a /var/log/monitor_myst.log
     first_run=false
   fi
   output=$(timeout 180 docker ps --filter "name=myst" --format "{{.Names}}" 2>&1)
