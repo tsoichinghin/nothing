@@ -423,7 +423,7 @@ check_container_logs() {
     # 檢查容器狀態是否為 exited 或 restarting
     local container_status
     container_status=$(docker ps -a --filter "name=$container" --format "{{.Status}}" 2>/dev/null)
-    if [[ "$container_status" =~ "Exited" || "$container_status" =~ "Restarting" || "$container_status" =~ "Dead" || "$container_status" =~ "Created"]]; then
+    if [[ "$container_status" =~ Exited|Restarting|Dead|Created ]]; then
       echo "Container $container is in $container_status status, triggering handle_docker_restart..." | tee -a /var/log/monitor_myst.log
       handle_docker_restart
       return 1
