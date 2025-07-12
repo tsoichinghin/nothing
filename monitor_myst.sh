@@ -335,27 +335,48 @@ handle_docker_restart() {
   }
 
   # 獲取當前存在的容器數字
-  local existing_numbers=()
+  local existing_vpni_numbers=()
+  output=$(timeout 300 docker ps -a --filter "name=vpni" --format "{{.Names}}" 2>/dev/null)
+  for c in $output; do
+    num=$(echo "$c" | grep -oE '[0-9]+$')
+    if [ -n "$num" ] && ! [[ " ${existing_vpni_numbers[*]} " =~ " $num " ]]; then
+      existing_vpni_numbers+=("$num")
+    fi
+  done
+  echo "Existing myst containers: ${existing_vpni_numbers[*]}" | tee -a /var/log/monitor_myst.log
+
+  # 計算缺失的數字（在 all_numbers 中但不在 existing_numbers 中）
+  local missing_vpni_numbers=()
+  for num in "${all_numbers[@]}"; do
+    if ! [[ " ${existing_vpni_numbers[*]} " =~ " $num " ]]; then
+      missing_vpni_numbers+=("$num")
+    fi
+  done
+  echo "Missing vpni container numbers: ${missing_vpni_numbers[*]}" | tee -a /var/log/monitor_myst.log
+
+  # 獲取當前存在的容器數字
+  local existing_myst_numbers=()
   output=$(timeout 300 docker ps -a --filter "name=myst" --format "{{.Names}}" 2>/dev/null)
   for c in $output; do
     num=$(echo "$c" | grep -oE '[0-9]+$')
-    if [ -n "$num" ] && ! [[ " ${existing_numbers[*]} " =~ " $num " ]]; then
-      existing_numbers+=("$num")
+    if [ -n "$num" ] && ! [[ " ${existing_myst_numbers[*]} " =~ " $num " ]]; then
+      existing_myst_numbers+=("$num")
     fi
   done
-  echo "Existing myst containers: ${existing_numbers[*]}" | tee -a /var/log/monitor_myst.log
+  echo "Existing myst containers: ${existing_myst_numbers[*]}" | tee -a /var/log/monitor_myst.log
 
   # 計算缺失的數字（在 all_numbers 中但不在 existing_numbers 中）
-  local missing_numbers=()
+  local missing_myst_numbers=()
   for num in "${all_numbers[@]}"; do
-    if ! [[ " ${existing_numbers[*]} " =~ " $num " ]]; then
-      missing_numbers+=("$num")
+    if ! [[ " ${existing_myst_numbers[*]} " =~ " $num " ]]; then
+      missing_myst_numbers+=("$num")
     fi
   done
-  echo "Missing container numbers: ${missing_numbers[*]}" | tee -a /var/log/monitor_myst.log
+  echo "Missing myst container numbers: ${missing_myst_numbers[*]}" | tee -a /var/log/monitor_myst.log
 
   # 為缺失的容器創建 vpni 和 myst
-  for num in "${missing_numbers[@]}"; do
+  # vpni
+  for num in "${missing_vpni_numbers[@]}"; do
     local myst_port=$((40001 + num - min_container_number))
     local ovpn_file_path="/root/ovpn/ip${num}.ovpn"
     local ovpn_file="ip${num}.ovpn"
@@ -364,7 +385,7 @@ handle_docker_restart() {
       continue
     fi
 
-    echo "Starting vpni$num and myst$num with myst_port $myst_port..." | tee -a /var/log/monitor_myst.log
+    echo "Starting vpni$num ..." | tee -a /var/log/monitor_myst.log
     output=$(timeout 300 docker run -d --restart always --network vpn${num} --cpu-period=100000 --cpu-quota=10000 \
       --log-driver json-file --log-opt max-size=50m --log-opt max-file=3 -p ${myst_port}:4449 \
       --cap-add=NET_ADMIN --device=/dev/net/tun --memory="64m" \
@@ -374,6 +395,12 @@ handle_docker_restart() {
       echo "Failed to start vpni${num}: $output" | tee -a /var/log/monitor_myst.log
       continue
     fi
+  done
+
+  # myst
+  for num in "${missing_myst_numbers[@]}"; do
+    local myst_port=$((40001 + num - min_container_number))
+    echo "Starting myst$num with myst_port $myst_port..." | tee -a /var/log/monitor_myst.log
     output=$(timeout 300 docker run -d --restart always --network container:vpni${num} --cpu-period=100000 \
       --log-driver json-file --log-opt max-size=50m --log-opt max-file=3 --memory="64m" \
       --cpu-quota=10000 --name myst${num} --cap-add NET_ADMIN \
