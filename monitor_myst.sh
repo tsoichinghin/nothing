@@ -184,7 +184,7 @@ handle_docker_restart() {
 
   # 獲取所有處於 exited 或 restarting 狀態的 myst 和 vpni 容器
   local output
-  output=$(timeout 300 docker ps -a --filter "name=myst|vpni" --filter "status=exited" --filter "status=restarting" --format "{{.Names}}" 2>&1)
+  output=$(timeout 300 docker ps -a --filter "name=myst|vpni" --filter "status=exited" --filter "status=restarting" --filter "status=created" --filter "status=dead" --format "{{.Names}}" 2>&1)
   local exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Error getting container list: $output" | tee -a /var/log/monitor_myst.log
@@ -193,7 +193,7 @@ handle_docker_restart() {
       return 1
     fi
     # 重試獲取容器列表
-    output=$(timeout 300 docker ps -a --filter "name=myst|vpni" --filter "status=exited" --filter "status=restarting" --format "{{.Names}}" 2>&1)
+    output=$(timeout 300 docker ps -a --filter "name=myst|vpni" --filter "status=exited" --filter "status=restarting" --filter "status=created" --filter "status=dead" --format "{{.Names}}" 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Error getting container list after Docker restart: $output" | tee -a /var/log/monitor_myst.log
@@ -276,7 +276,7 @@ handle_docker_restart() {
   done
 
   # 再次檢查是否有處於 exited 或 restarting 狀態的容器
-  output=$(timeout 300 docker ps -a --filter "name=myst|vpni" --filter "status=exited" --filter "status=restarting" --format "{{.Names}}" 2>&1)
+  output=$(timeout 300 docker ps -a --filter "name=myst|vpni" --filter "status=exited" --filter "status=restarting" --filter "status=created" --filter "status=dead" --format "{{.Names}}" 2>&1)
   exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
     echo "Error getting container list for second check: $output" | tee -a /var/log/monitor_myst.log
@@ -423,7 +423,7 @@ check_container_logs() {
     # 檢查容器狀態是否為 exited 或 restarting
     local container_status
     container_status=$(docker ps -a --filter "name=$container" --format "{{.Status}}" 2>/dev/null)
-    if [[ "$container_status" =~ "Exited" || "$container_status" =~ "Restarting" ]]; then
+    if [[ "$container_status" =~ "Exited" || "$container_status" =~ "Restarting" || "$container_status" =~ "Dead" || "$container_status" =~ "Created"]]; then
       echo "Container $container is in $container_status status, triggering handle_docker_restart..." | tee -a /var/log/monitor_myst.log
       handle_docker_restart
       return 1
@@ -454,6 +454,7 @@ while true; do
     echo "First run completed, proceeding with monitoring..." | tee -a /var/log/monitor_myst.log
     first_run=false
   fi
+  handle_docker_restart
   output=$(timeout 240 docker ps --filter "name=myst" --format "{{.Names}}" 2>&1)
   exit_code=$?
   if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
@@ -469,7 +470,7 @@ while true; do
   containers=$output
   if [ -z "$containers" ]; then
     echo "No running myst containers found. Checking stopped containers..." | tee -a /var/log/monitor_myst.log
-    output=$(timeout 240 docker ps -a --filter "name=myst" --filter "status=exited" --format "{{.Names}}" 2>&1)
+    output=$(timeout 240 docker ps -a --filter "name=myst" --filter "status=exited" --filter "status=restarting" --filter "status=created" --filter "status=dead" --format "{{.Names}}" 2>&1)
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Error getting stopped myst containers: $output" | tee -a /var/log/monitor_myst.log
