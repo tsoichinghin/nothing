@@ -343,7 +343,7 @@ handle_docker_restart() {
       existing_vpni_numbers+=("$num")
     fi
   done
-  echo "Existing myst containers: ${existing_vpni_numbers[*]}" | tee -a /var/log/monitor_myst.log
+  echo "Existing vpni containers: ${existing_vpni_numbers[*]}" | tee -a /var/log/monitor_myst.log
 
   # 計算缺失的數字（在 all_numbers 中但不在 existing_numbers 中）
   local missing_vpni_numbers=()
