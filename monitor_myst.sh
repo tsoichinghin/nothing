@@ -213,64 +213,76 @@ handle_docker_restart() {
 
   # 移除所有 myst 和 vpni 容器並清理元數據
   for num in "${numbers[@]}"; do
-    # 嘗試移除容器
-    output=$(timeout 300 docker rm -f "myst$num" 2>&1)
-    exit_code=$?
-    if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
-      echo "Failed to remove myst$num: $output" | tee -a /var/log/monitor_myst.log
-      # 重啟 Docker 服務並重試
-      echo "Restarting Docker service due to removal failure..." | tee -a /var/log/monitor_myst.log
-      output=$(timeout 600 sudo systemctl restart docker 2>&1)
-      exit_code=$?
-      if [ $exit_code -ne 0 ]; then
-        echo "Failed to restart Docker service or timed out: $output" | tee -a /var/log/monitor_myst.log
-        echo "Systemctl restart docker timed out, initiating reboot..." | tee -a /var/log/monitor_myst.log
-        sudo reboot
-        return 1
-      fi
-      sleep 10
-      if ! check_docker_service; then
-        echo "Docker service failed to restart, initiating reboot..." | tee -a /var/log/monitor_myst.log
-        sudo reboot
-        return 1
-      fi
-      # 重試移除
+    # 檢查 myst 容器是否存在
+    if docker ps -a --filter "name=^myst$num$" --format "{{.ID}}" | grep -q .; then
       output=$(timeout 300 docker rm -f "myst$num" 2>&1)
       exit_code=$?
-      if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
-        echo "Failed to remove myst$num after Docker restart: $output" | tee -a /var/log/monitor_myst.log
-        continue
+      if [ $exit_code -ne 0 ] && ! echo "$output" | grep -qi "No such container"; then
+        echo "Failed to remove myst$num: $output" | tee -a /var/log/monitor_myst.log
+        # 僅在非 "No such container" 錯誤時重啟 Docker
+        echo "Restarting Docker service due to removal failure..." | tee -a /var/log/monitor_myst.log
+        output=$(timeout 600 sudo systemctl restart docker 2>&1)
+        exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+          echo "Failed to restart Docker service or timed out: $output" | tee -a /var/log/monitor_myst.log
+          echo "Systemctl restart docker timed out, initiating reboot..." | tee -a /var/log/monitor_myst.log
+          sudo reboot
+          return 1
+        fi
+        sleep 10
+        if ! check_docker_service; then
+          echo "Docker service failed to restart, initiating reboot..." | tee -a /var/log/monitor_myst.log
+          sudo reboot
+          return 1
+        fi
+        # 重試移除
+        if docker ps -a --filter "name=^myst$num$" --format "{{.ID}}" | grep -q .; then
+          output=$(timeout 300 docker rm -f "myst$num" 2>&1)
+          exit_code=$?
+          if [ $exit_code -ne 0 ] && ! echo "$output" | grep -qi "No such container"; then
+            echo "Failed to remove myst$num after Docker restart: $output" | tee -a /var/log/monitor_myst.log
+            continue
+          fi
+        fi
       fi
+    else
+      echo "Container myst$num does not exist, skipping removal" | tee -a /var/log/monitor_myst.log
     fi
-    output=$(timeout 300 docker rm -f "vpni$num" 2>&1)
-    exit_code=$?
-    if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
-      echo "Failed to remove vpni$num: $output" | tee -a /var/log/monitor_myst.log
-      # 重啟 Docker 服務並重試
-      echo "Restarting Docker service due to removal failure..." | tee -a /var/log/monitor_myst.log
-      output=$(timeout 600 sudo systemctl restart docker 2>&1)
-      exit_code=$?
-      if [ $exit_code -ne 0 ]; then
-        echo "Failed to restart Docker service or timed out: $output" | tee -a /var/log/monitor_myst.log
-        echo "Systemctl restart docker timed out, initiating reboot..." | tee -a /var/log/monitor_myst.log
-        sudo reboot
-        return 1
-      fi
-      sleep 10
-      if ! check_docker_service; then
-        echo "Docker service failed to restart, initiating reboot..." | tee -a /var/log/monitor_myst.log
-        sudo reboot
-        return 1
-      fi
-      # 重試移除
+    # 檢查 vpni 容器是否存在
+    if docker ps -a --filter "name=^vpni$num$" --format "{{.ID}}" | grep -q .; then
       output=$(timeout 300 docker rm -f "vpni$num" 2>&1)
       exit_code=$?
-      if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
-        echo "Failed to remove vpni$num after Docker restart: $output" | tee -a /var/log/monitor_myst.log
-        continue
+      if [ $exit_code -ne 0 ] && ! echo "$output" | grep -qi "No such container"; then
+        echo "Failed to remove vpni$num: $output" | tee -a /var/log/monitor_myst.log
+        echo "Restarting Docker service due to removal failure..." | tee -a /var/log/monitor_myst.log
+        output=$(timeout 600 sudo systemctl restart docker 2>&1)
+        exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+          echo "Failed to restart Docker service or timed out: $output" | tee -a /var/log/monitor_myst.log
+          echo "Systemctl restart docker timed out, initiating reboot..." | tee -a /var/log/monitor_myst.log
+          sudo reboot
+          return 1
+        fi
+        sleep 10
+        if ! check_docker_service; then
+          echo "Docker service failed to restart, initiating reboot..." | tee -a /var/log/monitor_myst.log
+          sudo reboot
+          return 1
+        fi
+        # 重試移除
+        if docker ps -a --filter "name=^vpni$num$" --format "{{.ID}}" | grep -q .; then
+          output=$(timeout 300 docker rm -f "vpni$num" 2>&1)
+          exit_code=$?
+          if [ $exit_code -ne 0 ] && ! echo "$output" | grep -qi "No such container"; then
+            echo "Failed to remove vpni$num after Docker restart: $output" | tee -a /var/log/monitor_myst.log
+            continue
+          fi
+        fi
       fi
+    else
+      echo "Container vpni$num does not exist, skipping removal" | tee -a /var/log/monitor_myst.log
     fi
-    # 移除成功後清理元數據和 myst.db
+    # 清理元數據和重建網絡
     clean_container_metadata "myst$num"
     docker_network_recreate "$num"
   done
