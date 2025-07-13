@@ -75,10 +75,17 @@ for container in $output; do
   while [ $attempt -le $max_attempts ]; do
     output=$(timeout 900 docker exec "$container" myst cli identities get "$provider_id" 2>&1)
     exit_code=$?
-    if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error"; then
-      echo "Failed to check registration status for $container (attempt $attempt): $output" | tee -a "$LOG_FILE"
-      echo "$container" >> "$FAIL_CSV"
-      break
+    if [ $attempt -eq $max_attempts ]; then
+        echo "Container $container still InProgress after $max_attempts attempts, adding to fail CSV" | tee -a "$LOG_FILE"
+        echo "$container" >> "$FAIL_CSV"
+        break
+    else
+      if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error"; then
+        echo "Failed to check registration status for $container (attempt $attempt): $output" | tee -a "$LOG_FILE"
+        echo "$container" >> "$FAIL_CSV"
+        sleep 60
+        attempt=$((attempt + 1))
+      fi
     fi
 
     # 提取 Registration Status
