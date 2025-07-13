@@ -85,6 +85,7 @@ for container in $output; do
         echo "$container" >> "$FAIL_CSV"
         sleep 60
         attempt=$((attempt + 1))
+        continue
       fi
     fi
 
