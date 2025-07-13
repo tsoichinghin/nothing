@@ -64,13 +64,28 @@ for container in $output; do
   max_attempts=5
   attempt=1
   registration_status=""
-  output=$(timeout 900 docker exec "$container" myst cli identities register "$provider_id" "$WITHDRAWAL_ADDRESS" 2>&1)
-  exit_code=$?
-  if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error"; then
-    echo "Failed to register identity for $container: $output" | tee -a "$LOG_FILE"
+  while [ $attempt -le $max_attempts ]; do
+    output=$(timeout 900 docker exec "$container" myst cli identities register "$provider_id" "$WITHDRAWAL_ADDRESS" 2>&1)
+    exit_code=$?
+    if [ $attempt -eq $max_attempts ]; then
+        break
+    else
+      if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error"; then
+        echo "Failed to register identity for $container: $output" | tee -a "$LOG_FILE"
+        sleep 60
+        attempt=$((attempt + 1))
+        continue
+      else
+        break
+      fi
+    fi
+  done
+  if [ $attempt -eq $max_attempts ]; then
+    echo "Container $container registration failed after $max_attempts attempts, adding to fail CSV" | tee -a "$LOG_FILE"
     echo "$container" >> "$FAIL_CSV"
     continue
   fi
+  attempt=1
   echo "Identity registration attempted for $container" | tee -a "$LOG_FILE"
   while [ $attempt -le $max_attempts ]; do
     output=$(timeout 900 docker exec "$container" myst cli identities get "$provider_id" 2>&1)
@@ -82,7 +97,6 @@ for container in $output; do
     else
       if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error"; then
         echo "Failed to check registration status for $container (attempt $attempt): $output" | tee -a "$LOG_FILE"
-        echo "$container" >> "$FAIL_CSV"
         sleep 60
         attempt=$((attempt + 1))
         continue
