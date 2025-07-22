@@ -343,7 +343,7 @@ handle_docker_restart() {
       existing_vpni_numbers+=("$num")
     fi
   done
-  echo "Existing vpni containers: ${existing_vpni_numbers[*]}" | tee -a /var/log/monitor_myst.log
+  echo "Existing myst containers: ${existing_vpni_numbers[*]}" | tee -a /var/log/monitor_myst.log
 
   # 計算缺失的數字（在 all_numbers 中但不在 existing_numbers 中）
   local missing_vpni_numbers=()
@@ -393,6 +393,10 @@ handle_docker_restart() {
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to start vpni${num}: $output" | tee -a /var/log/monitor_myst.log
+      if echo "$output" | grep -qi "port is already allocated"; then
+        echo "Port conflict detected, rebooting system..." | tee -a /var/log/monitor_myst.log
+        reboot
+      fi
       continue
     fi
   done
@@ -410,6 +414,10 @@ handle_docker_restart() {
     exit_code=$?
     if [ $exit_code -ne 0 ] || echo "$output" | grep -qi "Error response from daemon"; then
       echo "Failed to start myst${num}: $output" | tee -a /var/log/monitor_myst.log
+      if echo "$output" | grep -qi "cannot join network of a non running container"; then
+        echo "Non-running container network error detected, rebooting system..." | tee -a /var/log/monitor_myst.log
+        reboot
+      fi
     fi
   done
 }
