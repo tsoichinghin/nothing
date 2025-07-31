@@ -540,13 +540,13 @@ def vk_check_conditions(row, prev_row):
         return 'short', True
     return None, False
 
-def drsi_check_conditions(row):
+def drsi_check_conditions(row, prev_row):
     long_drsi_cond = row['close'] > row['ema50'] and row['rsi35'] - row['rsi7'] >= 20
     short_drsi_cond = row['close'] < row['ema50'] and row['rsi7'] - row['rsi35'] >= 20
-    adx_cond = row['adx'] <= 15
-    if long_drsi_cond and adx_cond:
+    #adx_cond = row['adx'] <= 15
+    if long_drsi_cond:
         return 'long', True
-    elif short_drsi_cond and adx_cond:
+    elif short_drsi_cond:
         return 'short', True
     return None, False
 
@@ -778,7 +778,7 @@ def run_backtest_by_timsamps():
                     continue
                 if row is None or prev_row is None:
                     continue
-                direction, open_condition = macd_check_conditions(row=row, prev_row=prev_row)
+                direction, open_condition = drsi_check_conditions(row=row, prev_row=prev_row)
                 if open_condition:
                     if direction == 'long':
                         stop_loss = row['close'] - (prev_row['boll_upper'] - prev_row['ma20'])
