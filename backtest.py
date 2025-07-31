@@ -702,8 +702,8 @@ def run_backtest_by_timsamps():
         current_timestamp_data = dfs_by_timesamps[dfs_by_timesamps['timestamp'] == timestamp]
         if timestamp == unique_timestamps[0]:
             continue
-        #elif timestamp == unique_timestamps[1]:
-            #continue
+        elif timestamp == unique_timestamps[1]:
+            continue
         #elif timestamp == unique_timestamps[2]:
             #continue
 
@@ -711,34 +711,34 @@ def run_backtest_by_timsamps():
         for symbol in current_timestamp_data['symbol'].unique():
             row = current_timestamp_data[current_timestamp_data['symbol'] == symbol].iloc[0]
 
-            previous_timestamp = unique_timestamps[unique_timestamps.tolist().index(timestamp) -1]
-            previous_timestamp_data = dfs_by_timesamps[dfs_by_timesamps['timestamp'] == previous_timestamp]
-            if symbol in previous_timestamp_data['symbol'].values:
-                prev_row = previous_timestamp_data[previous_timestamp_data['symbol'] == symbol].iloc[0]
-            else:
-                continue
+            #previous_timestamp = unique_timestamps[unique_timestamps.tolist().index(timestamp) -1]
+            #previous_timestamp_data = dfs_by_timesamps[dfs_by_timesamps['timestamp'] == previous_timestamp]
+            #if symbol in previous_timestamp_data['symbol'].values:
+                #prev_row = previous_timestamp_data[previous_timestamp_data['symbol'] == symbol].iloc[0]
+            #else:
+                #continue
 
-            #prev_timestamp = unique_timestamps[unique_timestamps.tolist().index(timestamp) - 1]
-            #prev_prev_timestamp = unique_timestamps[unique_timestamps.tolist().index(timestamp) - 2]
+            prev_timestamp = unique_timestamps[unique_timestamps.tolist().index(timestamp) - 1]
+            prev_prev_timestamp = unique_timestamps[unique_timestamps.tolist().index(timestamp) - 2]
             #prev_prev_prev_timestamp = unique_timestamps[unique_timestamps.tolist().index(timestamp) - 3]
-            #prev_data_exists = symbol in dfs_by_timesamps[dfs_by_timesamps['timestamp'] == prev_timestamp]['symbol'].values
-            #prev_prev_data_exists = symbol in dfs_by_timesamps[dfs_by_timesamps['timestamp'] == prev_prev_timestamp]['symbol'].values
+            prev_data_exists = symbol in dfs_by_timesamps[dfs_by_timesamps['timestamp'] == prev_timestamp]['symbol'].values
+            prev_prev_data_exists = symbol in dfs_by_timesamps[dfs_by_timesamps['timestamp'] == prev_prev_timestamp]['symbol'].values
             #prev_prev_prev_data_exists = symbol in dfs_by_timesamps[dfs_by_timesamps['timestamp'] == prev_prev_prev_timestamp]['symbol'].values
-            #if prev_data_exists and prev_prev_data_exists and prev_prev_prev_data_exists:
-                #prev_row = dfs_by_timesamps[
-                    #(dfs_by_timesamps['timestamp'] == prev_timestamp) & 
-                    #(dfs_by_timesamps['symbol'] == symbol)
-                #].iloc[0]
-                #prev_prev_row = dfs_by_timesamps[
-                    #(dfs_by_timesamps['timestamp'] == prev_prev_timestamp) & 
-                    #(dfs_by_timesamps['symbol'] == symbol)
-                #].iloc[0]
+            if prev_data_exists and prev_prev_data_exists:
+                prev_row = dfs_by_timesamps[
+                    (dfs_by_timesamps['timestamp'] == prev_timestamp) & 
+                    (dfs_by_timesamps['symbol'] == symbol)
+                ].iloc[0]
+                prev_prev_row = dfs_by_timesamps[
+                    (dfs_by_timesamps['timestamp'] == prev_prev_timestamp) & 
+                    (dfs_by_timesamps['symbol'] == symbol)
+                ].iloc[0]
                 #prev_prev_prev_row = dfs_by_timesamps[
                     #(dfs_by_timesamps['timestamp'] == prev_prev_prev_timestamp) & 
                     #(dfs_by_timesamps['symbol'] == symbol)
                 #].iloc[0]
-            #else:
-                #continue
+            else:
+                continue
 
             # 检查平仓
             if current_position:
@@ -776,9 +776,9 @@ def run_backtest_by_timsamps():
             if not current_position:
                 if symbol in closed_trades and timestamp <= closed_trades[symbol]:
                     continue
-                if row is None or prev_row is None:
+                if row is None or prev_row is None or prev_prev_row is None:
                     continue
-                direction, open_condition = ma_check_conditions(row=row, prev_row=prev_row)
+                direction, open_condition = swing_check_conditions(row=row, prev_row=prev_row, prev_prev_row=prev_prev_row)
                 if open_condition:
                     if direction == 'long':
                         stop_loss = row['close'] - (prev_row['boll_upper'] - prev_row['ma20'])
