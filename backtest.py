@@ -543,10 +543,10 @@ def vk_check_conditions(row, prev_row):
 def drsi_check_conditions(row, prev_row):
     long_drsi_cond = row['close'] > row['ema50'] and row['rsi35'] - row['rsi7'] >= 20
     short_drsi_cond = row['close'] < row['ema50'] and row['rsi7'] - row['rsi35'] >= 20
-    #adx_cond = row['adx'] <= 15
-    if long_drsi_cond:
+    adx_cond = row['adx'] <= 15
+    if long_drsi_cond and adx_cond:
         return 'long', True
-    elif short_drsi_cond:
+    elif short_drsi_cond and adx_cond:
         return 'short', True
     return None, False
 
