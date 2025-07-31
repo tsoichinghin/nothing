@@ -778,7 +778,7 @@ def run_backtest_by_timsamps():
                     continue
                 if row is None or prev_row is None:
                     continue
-                direction, open_condition = vk_check_conditions(row=row, prev_row=prev_row)
+                direction, open_condition = rsi_20_100_check_conditions(row=row, prev_row=prev_row)
                 if open_condition:
                     if direction == 'long':
                         stop_loss = row['close'] - (prev_row['boll_upper'] - prev_row['ma20'])
