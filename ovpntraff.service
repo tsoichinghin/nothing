@@ -1,0 +1,14 @@
+[Unit]
+Description=Restart Traff Containers every 12 hours
+After=network.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/root/script.sh
+User=root
+Group=root
+TimeoutStartSec=0
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
