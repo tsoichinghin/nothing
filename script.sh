@@ -22,9 +22,9 @@ cleanup_all() {
 start_container() {
     local num=$1
     local ovpn_file="ip${num}.ovpn"
-    local name="tm${num}"
+    local name="pa${num}"
     local net="vpn${num}"
-    local device="tm${num}"
+    local device="pa${num}"
 
     # 先檢查 network 是否存在，不存在則建立
     docker network ls -q -f name="^${net}$" | grep -q . || {
@@ -36,7 +36,7 @@ start_container() {
 
     docker run -d --restart always --name "${name}" \
         --network "${net}" \
-        --cpu-period=100000 --cpu-quota=10000 \
+        --cpu-period=100000 --cpu-quota=3000 \
         --log-driver json-file --log-opt max-size=10m \
         --cap-add=NET_ADMIN --device=/dev/net/tun \
         --memory="32m" \
