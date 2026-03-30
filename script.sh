@@ -63,7 +63,7 @@ check_batch() {
     sleep "${SLEEP_BETWEEN_BATCH}"
 
     for (( num=start; num<=end; num++ )); do
-        local name="tm${num}"
+        local name="pa${num}"
 
         if ! docker ps -q -f name="^${name}$" | grep -q .; then
             # 容器不存在（可能已退出）
