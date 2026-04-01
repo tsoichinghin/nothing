@@ -36,7 +36,6 @@ start_container() {
 
     docker run -d --restart always --name "${name}" \
         --network "${net}" \
-        --cpu-period=100000 --cpu-quota=3000 \
         --log-driver json-file --log-opt max-size=10m \
         --cap-add=NET_ADMIN --device=/dev/net/tun \
         --memory="32m" \
