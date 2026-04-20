@@ -59,28 +59,26 @@ check_batch() {
     local start=$1
     local end=$2
 
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 等待 ${SLEEP_BETWEEN_BATCH} 秒後檢查 ${start} ~ ${end} ..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 等待 ${SLEEP_BETWEEN_BATCH} 秒後檢查 ${start} ~ ${end} 的全量 Log..."
 
     sleep "${SLEEP_BETWEEN_BATCH}"
 
     for (( num=start; num<=end; num++ )); do
         local name="myst${num}"
 
-        if ! docker ps -q -f name="^${name}$" | grep -q .; then
-            # 容器不存在（可能已退出）
+        # 1. 檢查容器是否存在
+        if ! docker ps -a -q -f name="^${name}$" | grep -q .; then
             echo "容器 ${name} 不存在，跳過..."
             continue
         fi
 
-        local status=$(docker inspect --format '{{.State.Status}}' "${name}")
-        local started_at=$(docker inspect --format '{{.State.StartedAt}}' "${name}")
-        local running_sec=$(($(date +%s) - $(date -d "${started_at}" +%s)))
-
-        if [[ "${status}" == "restarting" ]] || [[ ${running_sec} -lt ${MIN_RUNNING_SECONDS} ]]; then
-            echo "容器 ${name} 異常 (status=${status}, running=${running_sec}s)，刪除..."
-            docker rm -f "${name}" >/dev/null 2>&1
+        # 2. 獲取該容器的所有 Log 並檢查關鍵字
+        # 移除 --tail 代表從頭開始讀
+        if docker logs "${name}" 2>&1 | grep -q "Starting Mysterium service..."; then
+            echo "容器 ${name} 正常：已在歷史紀錄中找到啟動成功字樣。"
         else
-            echo "容器 ${name} 正常 (running=${running_sec}s)"
+            echo "容器 ${name} 異常：全量 Log 中未發現啟動字樣，正在刪除..."
+            docker rm -f "${name}" >/dev/null 2>&1
         fi
     done
 }
