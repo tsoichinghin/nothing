@@ -42,7 +42,7 @@ start_container() {
         --memory="32m" \
         -v /root/ovpn:/vpn \
         -v /root/mystcsv:/output \
-        -v /root/myst/"${name}":/var/lib/mysterium-node \
+        -v /root/myst/"${name}":/root/.mysterium \
         -e OVPN_FILE="${ovpn_file}" \
         -e CONTAINER_NAME="${name}" \
         "${DOCKER_IMAGE}" >/dev/null 2>&1
