@@ -22,9 +22,9 @@ cleanup_all() {
 start_container() {
     local num=$1
     local ovpn_file="ip${num}.ovpn"
-    local name="tb${num}"
+    local name="pa${num}"
     local net="vpn${num}"
-    local device="tb${num}"
+    local device="pa${num}"
 
     # 先檢查 network 是否存在，不存在則建立
     docker network ls -q -f name="^${net}$" | grep -q . || {
@@ -48,7 +48,7 @@ start_container() {
     # 檢查是否真的啟動成功
     sleep 5
     if ! docker ps --filter "name=${name}" --format '{{.Status}}' | grep -q "Up"; then
-        echo "容器 tm${num} 啟動失敗，跳過..."
+        echo "容器 pa${num} 啟動失敗，跳過..."
     fi
 }
 
@@ -62,7 +62,7 @@ check_batch() {
     sleep "${SLEEP_BETWEEN_BATCH}"
 
     for (( num=start; num<=end; num++ )); do
-        local name="tb${num}"
+        local name="pa${num}"
 
         if ! docker ps -q -f name="^${name}$" | grep -q .; then
             # 容器不存在（可能已退出）
