@@ -38,7 +38,7 @@ start_container() {
         --network "${net}" \
         --log-driver json-file --log-opt max-size=10m \
         --cap-add=NET_ADMIN --device=/dev/net/tun \
-        --cpu-period=100000 --cpu-quota=5000 \
+        --cpu-period=100000 --cpu-quota=10000 \
         --memory="32m" \
         -v /root/ovpn:/vpn \
         -v /root/mystcsv:/output \
