@@ -8,6 +8,7 @@ TM_TOKEN="bS0ext4ADmBIxkKFIViHY5Irl+R/gXJtjo97JFnonXA="
 RP_EMAIL="thisistect@gmail.com"
 RP_API_KEY="11fb66e3-69bf-404a-8131-91fd89c262e4"
 PS_CID="84Vb"
+VPS="rhs1"
 # ===============================================
 
 # 檢查 ip.txt 是否存在
@@ -41,7 +42,7 @@ main() {
       echo "--------------------------------------------------"
       echo "正在部署第 $number 組多重收益矩陣..."
       echo "Proxy IP: $ip:$port"
-      echo "設備名稱: ip$number"
+      echo "設備名稱: $VPS-ip$number"
       echo "--------------------------------------------------"
 
       # 1. 啟動 Traffmonetizer (tm)
@@ -55,6 +56,7 @@ main() {
         -e PROXY_USER="$username" \
         -e PROXY_PASSWORD="$password" \
         -e TM_TOKEN="$TM_TOKEN" \
+        -e DEVICE_NAME="$VPS-$number" \
         tsoichinghin/proxytm:latest
 
       # 2. 啟動 Repocket (rp)
