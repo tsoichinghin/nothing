@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==================== 設定區 ====================
-PROXY_FILE="ip.txt"
+PROXY_FILE="/root/ip.txt"
 
 # 軟體帳密與 Token 設定
 TM_TOKEN="Nwma6KuxfvF/jJUsBCtyl/3cHfIoEA8oxdBA7RkgKN0="
