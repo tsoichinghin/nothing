@@ -4,9 +4,9 @@
 PROXY_FILE="ip.txt"
 
 # 軟體帳密與 Token 設定
-TM_TOKEN="bS0ext4ADmBIxkKFIViHY5Irl+R/gXJtjo97JFnonXA="
-RP_EMAIL="thisistect@gmail.com"
-RP_API_KEY="11fb66e3-69bf-404a-8131-91fd89c262e4"
+TM_TOKEN="Nwma6KuxfvF/jJUsBCtyl/3cHfIoEA8oxdBA7RkgKN0="
+RP_EMAIL="tsoichinghin@gmail.com"
+RP_API_KEY="a17ebebc-ad88-40ba-ba85-9eaee015e1f4"
 PS_CID="84Vb"
 VPS="rhs1"
 # ===============================================
