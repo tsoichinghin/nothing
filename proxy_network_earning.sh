@@ -97,7 +97,7 @@ main() {
         -e PROXY_PORT="$port" \
         -e PROXY_USER="$username" \
         -e PROXY_PASSWORD="$password" \
-        -e EARNFM_TOKEN="$earnfm_token" \
+        -e EARNFM_TOKEN="$EARNFM_TOKEN" \
         tsoichinghin/proxyfm:latest
 
       # 編戶號加 1，進到下一行 Proxy
