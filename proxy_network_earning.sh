@@ -4,12 +4,12 @@
 PROXY_FILE="/root/ip.txt"
 
 # 軟體帳密與 Token 設定
-TM_TOKEN="nKM6nXMQOUzIHlG3z3tCmkUH/fo14HZQn6jwzbBaUi4="
-RP_EMAIL="thisistect@gmail.com"
-RP_API_KEY="11fb66e3-69bf-404a-8131-91fd89c262e4"
-PS_CID="5rwJ"
+TM_TOKEN="Nwma6KuxfvF/jJUsBCtyl/3cHfIoEA8oxdBA7RkgKN0="
+RP_EMAIL="tsoichinghin@gmail.com"
+RP_API_KEY="a17ebebc-ad88-40ba-ba85-9eaee015e1f4"
+PS_CID="84Vb"
 EARNFM_TOKEN="2d881781-20c2-43a8-91f4-6f6f7bfedf0a"
-VPS="rhs21"
+VPS="rhs1"
 # ===============================================
 
 # 檢查 ip.txt 是否存在
