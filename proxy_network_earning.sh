@@ -8,8 +8,6 @@ TM_TOKEN="Nwma6KuxfvF/jJUsBCtyl/3cHfIoEA8oxdBA7RkgKN0="
 RP_EMAIL="tsoichinghin@gmail.com"
 RP_API_KEY="a17ebebc-ad88-40ba-ba85-9eaee015e1f4"
 PS_CID="84Vb"
-EARNFM_TOKEN="2d881781-20c2-43a8-91f4-6f6f7bfedf0a"
-PR_API_KEY="MC7GGJ579KBV2JEGTLRTU6MCHGT7IL0IMX70DEH9"
 VPS="rhs1"
 # ===============================================
 
@@ -88,39 +86,6 @@ main() {
         -e CID="$PS_CID" \
         tsoichinghin/proxypsc:latest
 
-      # 4. 啟動 Earnfm (fm)
-      docker run -d \
-        --restart always \
-        --name "fm$number" \
-        --cpu-period=100000 --cpu-quota=10000 \
-        --cap-add=NET_ADMIN \
-        -e PROXY_IP="$ip" \
-        -e PROXY_PORT="$port" \
-        -e PROXY_USER="$username" \
-        -e PROXY_PASSWORD="$password" \
-        -e EARNFM_TOKEN="$EARNFM_TOKEN" \
-        tsoichinghin/proxyfm:latest
-
-      UUID=$(cat /dev/urandom | LC_ALL=C tr -dc 'A-F0-9' | dd bs=1 count=64 2>/dev/null && echo)
-
-      # 5. 啟動 Proxyrack (pr)
-      docker run -d \
-        --restart always \
-        --name "pr$number" \
-        --cpu-period=100000 --cpu-quota=10000 \
-        --cap-add=NET_ADMIN \
-        -e PROXY_IP="$ip" \
-        -e PROXY_PORT="$port" \
-        -e PROXY_USER="$username" \
-        -e PROXY_PASSWORD="$password" \
-        -e UUID="$UUID" \
-        -e API_KEY="$PR_API_KEY" \
-        -e DEVICE_NAME="$VPS-$number" \
-        tsoichinghin/proxypr:latest
-
-      # 編戶號加 1，進到下一行 Proxy
-      number=$((number + 1))
-
   done < "$PROXY_FILE"
 
   echo "=============================================="
@@ -136,6 +101,6 @@ while true; do
   main
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] ===== 所有批次處理完成 ====="
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] 腳本結束"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] 執行完成，等待 12 小時..."
-  sleep 43200
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] 執行完成，等待 24 小時..."
+  sleep 86400
 done
