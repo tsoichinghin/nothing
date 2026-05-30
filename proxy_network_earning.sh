@@ -30,61 +30,63 @@ main() {
 
   # 逐行讀取 ip.txt
   while IFS= read -r line || [ -n "$line" ]; do
-      # 忽略空行
-      [ -z "$line" ] && continue
+    # 忽略空行
+    [ -z "$line" ] && continue
 
-      # 使用 ':' 切割 Proxy 資訊
-      ip=$(echo "$line" | cut -d':' -f1)
-      port=$(echo "$line" | cut -d':' -f2)
-      username=$(echo "$line" | cut -d':' -f3)
-      password=$(echo "$line" | cut -d':' -f4)
+    # 使用 ':' 切割 Proxy 資訊
+    ip=$(echo "$line" | cut -d':' -f1)
+    port=$(echo "$line" | cut -d':' -f2)
+    username=$(echo "$line" | cut -d':' -f3)
+    password=$(echo "$line" | cut -d':' -f4)
 
-      echo "--------------------------------------------------"
-      echo "正在部署第 $number 組多重收益矩陣..."
-      echo "Proxy IP: $ip:$port"
-      echo "設備名稱: $VPS-ip$number"
-      echo "--------------------------------------------------"
+    echo "--------------------------------------------------"
+    echo "正在部署第 $number 組多重收益矩陣..."
+    echo "Proxy IP: $ip:$port"
+    echo "設備名稱: $VPS-ip$number"
+    echo "--------------------------------------------------"
 
-      # 1. 啟動 Traffmonetizer (tm)
-      docker run -d \
-        --restart always \
-        --name "tm$number" \
-        --cpu-period=100000 --cpu-quota=10000 \
-        --cap-add=NET_ADMIN \
-        -e PROXY_IP="$ip" \
-        -e PROXY_PORT="$port" \
-        -e PROXY_USER="$username" \
-        -e PROXY_PASSWORD="$password" \
-        -e TM_TOKEN="$TM_TOKEN" \
-        -e DEVICE_NAME="$VPS-$number" \
-        tsoichinghin/proxytm:latest
+    # 1. 啟動 Traffmonetizer (tm)
+    docker run -d \
+      --restart always \
+      --name "tm$number" \
+      --cpu-period=100000 --cpu-quota=10000 \
+      --cap-add=NET_ADMIN \
+      -e PROXY_IP="$ip" \
+      -e PROXY_PORT="$port" \
+      -e PROXY_USER="$username" \
+      -e PROXY_PASSWORD="$password" \
+      -e TM_TOKEN="$TM_TOKEN" \
+      -e DEVICE_NAME="$VPS-$number" \
+      tsoichinghin/proxytm:latest
 
-      # 2. 啟動 Repocket (rp)
-      docker run -d \
-        --restart always \
-        --name "rp$number" \
-        --cpu-period=100000 --cpu-quota=10000 \
-        --cap-add=NET_ADMIN \
-        -e PROXY_IP="$ip" \
-        -e PROXY_PORT="$port" \
-        -e PROXY_USER="$username" \
-        -e PROXY_PASSWORD="$password" \
-        -e RP_EMAIL="$RP_EMAIL" \
-        -e RP_API_KEY="$RP_API_KEY" \
-        tsoichinghin/proxyrp:latest
+    # 2. 啟動 Repocket (rp)
+    docker run -d \
+      --restart always \
+      --name "rp$number" \
+      --cpu-period=100000 --cpu-quota=10000 \
+      --cap-add=NET_ADMIN \
+      -e PROXY_IP="$ip" \
+      -e PROXY_PORT="$port" \
+      -e PROXY_USER="$username" \
+      -e PROXY_PASSWORD="$password" \
+      -e RP_EMAIL="$RP_EMAIL" \
+      -e RP_API_KEY="$RP_API_KEY" \
+      tsoichinghin/proxyrp:latest
 
-      # 3. 啟動 PacketStream (ps)
-      docker run -d \
-        --restart always \
-        --name "psc$number" \
-        --cpu-period=100000 --cpu-quota=10000 \
-        --cap-add=NET_ADMIN \
-        -e PROXY_IP="$ip" \
-        -e PROXY_PORT="$port" \
-        -e PROXY_USER="$username" \
-        -e PROXY_PASSWORD="$password" \
-        -e CID="$PS_CID" \
-        tsoichinghin/proxypsc:latest
+    # 3. 啟動 PacketStream (ps)
+    docker run -d \
+      --restart always \
+      --name "psc$number" \
+      --cpu-period=100000 --cpu-quota=10000 \
+      --cap-add=NET_ADMIN \
+      -e PROXY_IP="$ip" \
+      -e PROXY_PORT="$port" \
+      -e PROXY_USER="$username" \
+      -e PROXY_PASSWORD="$password" \
+      -e CID="$PS_CID" \
+      tsoichinghin/proxypsc:latest
+
+    number=$((number + 1))
 
   done < "$PROXY_FILE"
 
