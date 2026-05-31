@@ -47,7 +47,6 @@ main() {
 
     # 1. 啟動 Traffmonetizer (tm)
     docker run -d \
-      --restart always \
       --name "tm$number" \
       --cpu-period=100000 --cpu-quota=10000 \
       --cap-add=NET_ADMIN \
@@ -61,7 +60,6 @@ main() {
 
     # 2. 啟動 Repocket (rp)
     docker run -d \
-      --restart always \
       --name "rp$number" \
       --cpu-period=100000 --cpu-quota=10000 \
       --cap-add=NET_ADMIN \
@@ -75,7 +73,6 @@ main() {
 
     # 3. 啟動 PacketStream (ps)
     docker run -d \
-      --restart always \
       --name "psc$number" \
       --cpu-period=100000 --cpu-quota=10000 \
       --cap-add=NET_ADMIN \
