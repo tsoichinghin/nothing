@@ -48,6 +48,7 @@ main() {
     # 1. 啟動 Traffmonetizer (tm)
     docker run -d \
       --name "tm$number" \
+      --restart always \
       --cpu-period=100000 --cpu-quota=10000 \
       --cap-add=NET_ADMIN \
       -e PROXY_IP="$ip" \
@@ -61,6 +62,7 @@ main() {
     # 2. 啟動 PacketStream (ps)
     docker run -d \
       --name "psc$number" \
+      --restart always \
       --cpu-period=100000 --cpu-quota=10000 \
       --cap-add=NET_ADMIN \
       -e PROXY_IP="$ip" \
@@ -73,6 +75,7 @@ main() {
     # 3. 啟動 Repocket (rp)
     docker run -d \
       --name "rp$number" \
+      --restart always \
       --cpu-period=100000 --cpu-quota=10000 \
       --cap-add=NET_ADMIN \
       -e PROXY_IP="$ip" \
