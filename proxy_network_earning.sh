@@ -100,6 +100,6 @@ while true; do
   main
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] ===== 所有批次處理完成 ====="
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] 腳本結束"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] 執行完成，等待 24 小時..."
-  sleep 86400
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] 執行完成，等待 12 小時..."
+  sleep 43200
 done
