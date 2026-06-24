@@ -5,10 +5,10 @@ PROXY_FILE="/root/ip.txt"
 
 # 軟體帳密與 Token 設定
 TM_TOKEN="Nwma6KuxfvF/jJUsBCtyl/3cHfIoEA8oxdBA7RkgKN0="
+PS_CID="84Vb"
 RP_EMAIL="tsoichinghin@gmail.com"
 RP_API_KEY="a17ebebc-ad88-40ba-ba85-9eaee015e1f4"
-PS_CID="84Vb"
-VPS="rhs1"
+VPS="dm1"
 # ===============================================
 
 # 檢查 ip.txt 是否存在
@@ -58,7 +58,19 @@ main() {
       -e DEVICE_NAME="$VPS-$number" \
       tsoichinghin/proxytm:latest
 
-    # 2. 啟動 Repocket (rp)
+    # 2. 啟動 PacketStream (ps)
+    docker run -d \
+      --name "psc$number" \
+      --cpu-period=100000 --cpu-quota=10000 \
+      --cap-add=NET_ADMIN \
+      -e PROXY_IP="$ip" \
+      -e PROXY_PORT="$port" \
+      -e PROXY_USER="$username" \
+      -e PROXY_PASSWORD="$password" \
+      -e CID="$PS_CID" \
+      tsoichinghin/proxypsc:latest
+    
+    # 3. 啟動 Repocket (rp)
     docker run -d \
       --name "rp$number" \
       --cpu-period=100000 --cpu-quota=10000 \
@@ -70,18 +82,6 @@ main() {
       -e RP_EMAIL="$RP_EMAIL" \
       -e RP_API_KEY="$RP_API_KEY" \
       tsoichinghin/proxyrp:latest
-
-    # 3. 啟動 PacketStream (ps)
-    docker run -d \
-      --name "psc$number" \
-      --cpu-period=100000 --cpu-quota=10000 \
-      --cap-add=NET_ADMIN \
-      -e PROXY_IP="$ip" \
-      -e PROXY_PORT="$port" \
-      -e PROXY_USER="$username" \
-      -e PROXY_PASSWORD="$password" \
-      -e CID="$PS_CID" \
-      tsoichinghin/proxypsc:latest
 
     number=$((number + 1))
 
