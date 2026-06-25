@@ -88,7 +88,7 @@ main() {
     number=$((number + 1))
     
     # 物理防塞車微延遲：每部署完一組 IP 歇息 0.5 秒，平滑高並發流量
-    sleep 0.5
+    sleep 2
 
   done < "$PROXY_FILE"
 
