@@ -100,7 +100,6 @@ main() {
 # ==================== 主流程 ====================
 while true; do
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] ===== 容器重啟腳本開始 ====="
-  check_and_create_networks
   cleanup_all
   main
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] ===== 所有批次處理完成 ====="
