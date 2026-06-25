@@ -8,7 +8,7 @@ TM_TOKEN="Nwma6KuxfvF/jJUsBCtyl/3cHfIoEA8oxdBA7RkgKN0="
 PS_CID="84Vb"
 RP_EMAIL="tsoichinghin@gmail.com"
 RP_API_KEY="a17ebebc-ad88-40ba-ba85-9eaee015e1f4"
-VPS="dm1"
+VPS="wb1"
 # ===============================================
 
 # 檢查 ip.txt 是否存在
