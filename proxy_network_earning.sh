@@ -21,7 +21,15 @@ fi
 cleanup_all() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] 正在強制刪除所有現有容器..."
   docker rm -f $(docker ps -a -q) 2>/dev/null || true
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] 所有容器已清除。"
+  sleep 5
+  if [ -n "$(docker ps -a -q)" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ 發現頑固殭屍容器死鎖！正在物理同步磁碟並執行 reboot 終極自救..."
+    sync && sync
+    reboot
+    exit 0
+  else
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ 所有容器已順利清除，無需重啟宿主機。"
+  fi
 }
 
 main() {
@@ -86,8 +94,6 @@ main() {
       tsoichinghin/proxyrp:latest
 
     number=$((number + 1))
-
-    sleep 5
 
   done < "$PROXY_FILE"
 
