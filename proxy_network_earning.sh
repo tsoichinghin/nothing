@@ -17,22 +17,6 @@ if [ ! -f "$PROXY_FILE" ]; then
   exit 1
 fi
 
-# 檢查並自動建立 4 個分流 Bridge 網路
-check_and_create_networks() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] 正在檢查 Docker 分流網路..."
-  subnets=("172.20.0.0/16" "172.21.0.0/16" "172.22.0.0/16" "172.23.0.0/16")
-  
-  for i in {1..4}; do
-    net_name="net$i"
-    if ! docker network inspect "$net_name" >/dev/null 2>&1; then
-      echo "偵測到 $net_name 不存在，正在物理建立..."
-      docker network create --driver bridge --subnet="${subnets[$((i-1))]}" "$net_name"
-    else
-      echo "[$net_name] 已存在，安全無虞。"
-    fi
-  done
-}
-
 # 刪除所有現有容器
 cleanup_all() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] 正在強制刪除所有現有容器..."
@@ -54,27 +38,15 @@ main() {
     username=$(echo "$line" | cut -d':' -f3)
     password=$(echo "$line" | cut -d':' -f4)
 
-    if [ $number -le 50 ]; then
-      current_net="net1"
-    elif [ $number -le 100 ]; then
-      current_net="net2"
-    elif [ $number -le 150 ]; then
-      current_net="net3"
-    else
-      current_net="net4"
-    fi
-
     echo "--------------------------------------------------"
     echo "正在部署第 $number 組多重收益矩陣..."
     echo "Proxy IP: $ip:$port"
     echo "設備名稱: $VPS-ip$number"
-    echo "分配網路: $current_net"
     echo "--------------------------------------------------"
 
     # 1. 啟動 Traffmonetizer (tm)
     docker run -d \
       --name "tm$number" \
-      --network "$current_net" \
       --restart always \
       --cpu-period=100000 --cpu-quota=10000 \
       --cap-add=NET_ADMIN \
@@ -89,7 +61,6 @@ main() {
     # 2. 啟動 PacketStream (ps)
     docker run -d \
       --name "psc$number" \
-      --network "$current_net" \
       --restart always \
       --cpu-period=100000 --cpu-quota=10000 \
       --cap-add=NET_ADMIN \
@@ -103,7 +74,6 @@ main() {
     # 3. 啟動 Repocket (rp)
     docker run -d \
       --name "rp$number" \
-      --network "$current_net" \
       --restart always \
       --cpu-period=100000 --cpu-quota=10000 \
       --cap-add=NET_ADMIN \
