@@ -52,9 +52,8 @@ main() {
     echo "設備名稱: $VPS-ip$number"
     echo "--------------------------------------------------"
 
-    # 1. 啟動 Traffmonetizer (tm)
     docker run -d \
-      --name "tm$number" \
+      --name "ip$number" \
       --restart always \
       --cpu-period=100000 --cpu-quota=10000 \
       --cap-add=NET_ADMIN \
@@ -64,34 +63,10 @@ main() {
       -e PROXY_PASSWORD="$password" \
       -e TM_TOKEN="$TM_TOKEN" \
       -e DEVICE_NAME="$VPS-$number" \
-      tsoichinghin/proxytm:latest
-
-    # 2. 啟動 PacketStream (ps)
-    docker run -d \
-      --name "psc$number" \
-      --restart always \
-      --cpu-period=100000 --cpu-quota=10000 \
-      --cap-add=NET_ADMIN \
-      -e PROXY_IP="$ip" \
-      -e PROXY_PORT="$port" \
-      -e PROXY_USER="$username" \
-      -e PROXY_PASSWORD="$password" \
       -e CID="$PS_CID" \
-      tsoichinghin/proxypsc:latest
-    
-    # 3. 啟動 Repocket (rp)
-    docker run -d \
-      --name "rp$number" \
-      --restart always \
-      --cpu-period=100000 --cpu-quota=10000 \
-      --cap-add=NET_ADMIN \
-      -e PROXY_IP="$ip" \
-      -e PROXY_PORT="$port" \
-      -e PROXY_USER="$username" \
-      -e PROXY_PASSWORD="$password" \
       -e RP_EMAIL="$RP_EMAIL" \
       -e RP_API_KEY="$RP_API_KEY" \
-      tsoichinghin/proxyrp:latest
+      tsoichinghin/proxymix:latest
 
     number=$((number + 1))
 
