@@ -54,6 +54,7 @@ main() {
 
     docker run -d \
       --name "ip$number" \
+      --restart on-failure:5 \
       --cap-add=NET_ADMIN \
       -e PROXY_IP="$ip" \
       -e PROXY_PORT="$port" \
@@ -68,11 +69,13 @@ main() {
 
     number=$((number + 1))
 
+    sleep 5
+
   done < "$PROXY_FILE"
 
   echo "=============================================="
   echo "【成功】所有 $(((number - 1))) 組多重收益矩陣部署完成！"
-  echo "共啟動了 $(((number - 1) * 3)) 個容器。"
+  echo "共啟動了 $(((number - 1))) 個容器。"
   echo "=============================================="
 }
 
