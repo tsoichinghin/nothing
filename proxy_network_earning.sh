@@ -54,8 +54,6 @@ main() {
 
     docker run -d \
       --name "ip$number" \
-      --restart always \
-      --cpu-period=100000 --cpu-quota=10000 \
       --cap-add=NET_ADMIN \
       -e PROXY_IP="$ip" \
       -e PROXY_PORT="$port" \
