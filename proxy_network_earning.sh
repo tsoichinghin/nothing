@@ -54,7 +54,7 @@ main() {
 
     docker run -d \
       --name "ip$number" \
-      --restart on-failure:5 \
+      --restart on-failure:10 \
       --cap-add=NET_ADMIN \
       -e PROXY_IP="$ip" \
       -e PROXY_PORT="$port" \
