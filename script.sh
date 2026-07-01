@@ -7,15 +7,23 @@ BATCH_SIZE=50
 SLEEP_BETWEEN_BATCH=900          # 15 分鐘 = 900 秒
 MIN_RUNNING_SECONDS=600           # 至少運行 10 分鐘 = 600 秒
 DOCKER_IMAGE="tsoichinghin/ovpn-traff:latest"
-TOKEN="b6UZLbAQ3BpAX02rVwk/H0qtRURyE5YHUi2OQnIZD7o="
+TOKEN="bS0ext4ADmBIxkKFIViHY5Irl+R/gXJtjo97JFnonXA="
 
 # ==================== 函數 ====================
 
 # 刪除所有現有容器
 cleanup_all() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 正在強制刪除所有現有容器..."
-    docker rm -f $(docker ps -a -q) 2>/dev/null || true
-    echo "所有容器已清除。"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] 正在強制刪除所有現有容器..."
+  docker rm -f $(docker ps -a -q) 2>/dev/null || true
+  sleep 5
+  if [ -n "$(docker ps -a -q)" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️ 發現頑固殭屍容器死鎖！正在物理同步磁碟並執行 reboot 終極自救..."
+    sync && sync
+    reboot
+    exit 0
+  else
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ 所有容器已順利清除，無需重啟宿主機。"
+  fi
 }
 
 # 啟動單個容器
