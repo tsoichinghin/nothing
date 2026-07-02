@@ -56,8 +56,6 @@ main() {
       --name "ip$number" \
       --restart on-failure:10 \
       --cap-add=NET_ADMIN \
-      -v /root/error:/error \
-      -e number="$number" \
       -e PROXY_IP="$ip" \
       -e PROXY_PORT="$port" \
       -e PROXY_USER="$username" \
@@ -70,8 +68,6 @@ main() {
       tsoichinghin/proxymix:latest
 
     number=$((number + 1))
-
-    sleep 5
 
   done < "$PROXY_FILE"
 
@@ -88,6 +84,6 @@ while true; do
   main
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] ===== 所有批次處理完成 ====="
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] 腳本結束"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] 執行完成，等待 12 小時..."
-  sleep 43200
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] 執行完成，等待 3 小時..."
+  sleep 10800
 done
