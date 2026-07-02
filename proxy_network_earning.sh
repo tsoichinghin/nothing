@@ -67,6 +67,13 @@ main() {
       -e RP_API_KEY="$RP_API_KEY" \
       tsoichinghin/proxymix:latest
 
+    sleep 5
+
+    if (( $number % 10 == 0 )); then
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] 已部署 $number 組矩陣，等待 60 秒以避免過快拉起容器..."
+      sleep 60
+    fi
+
     number=$((number + 1))
 
   done < "$PROXY_FILE"
