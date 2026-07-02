@@ -56,6 +56,8 @@ main() {
       --name "ip$number" \
       --restart on-failure:10 \
       --cap-add=NET_ADMIN \
+      -v /root/error:/error \
+      -e number="$number" \
       -e PROXY_IP="$ip" \
       -e PROXY_PORT="$port" \
       -e PROXY_USER="$username" \
