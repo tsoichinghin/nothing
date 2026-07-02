@@ -1,0 +1,14 @@
+[Unit]
+Description=Check proxymix container error
+After=network.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/root/error.sh
+User=root
+Group=root
+TimeoutStartSec=0
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
